@@ -1,0 +1,39 @@
+{
+  "dataset_file": "/home/kali/SentriX/backend/dataset/test_10_no_label.csv",
+  "start_index": 0,
+  "end_index": 10,
+  "generated_at": "2026-04-18T09:04:50.510503Z",
+  "chain_node_count": 2,
+  "chain": [
+    {
+      "node_id": "row-2",
+      "row_index": 2,
+      "stage": "execution",
+      "ttp": [
+        "attack.t1059"
+      ],
+      "confidence": 0.384,
+      "decision": "建议人工复核并持续监控",
+      "evidence_ids": [
+        "EVID-0001"
+      ],
+      "summary": "CSV row #2: GET /nette.micro/?callback=shell_exec&cmd=cat/etc/passwd&what=-1 HTTP/1.1\\0D\\0AUser-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chr",
+      "risk_level": "suspicious"
+    },
+    {
+      "node_id": "row-3",
+      "row_index": 3,
+      "stage": "collection",
+      "ttp": [
+        "attack.t1005"
+      ],
+      "confidence": 0.308,
+      "decision": "建议人工复核并持续监控",
+      "evidence_ids": [
+        "EVID-0001"
+      ],
+      "summary": "CSV row #3: GET /typo3conf/ext/restler/vendor/luracast/restler/public/examples/resources/getsource.php?file=../../../../../../../LocalConfiguration.php HTTP/1.1\\0D\\0AUser-Agent: Mozilla/5.0 (W",
+      "risk_level": "suspicious"
+    }
+  ]
+}

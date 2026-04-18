@@ -1,0 +1,5882 @@
+{
+  "incident_meta": {
+    "source": "json",
+    "path": "/home/kali/SentriX/backend/data/sample_incident.json"
+  },
+  "rag_summary": {
+    "summary": "RAG检索完成（SQLite数据库检索 + 本地补全 + 规则特征）",
+    "matched_iocs": 3,
+    "matched_cves": 1,
+    "matched_rules": 2,
+    "similar_cases": 5
+  },
+  "state_snapshot": {
+    "containment": 0.21000000000000002,
+    "assessment": 0.48,
+    "preservation": 0.05,
+    "eviction": 0.11,
+    "hardening": 0.23000000000000004,
+    "restoration": 0.05,
+    "explanation": "状态评估基于日志关键词匹配与IOC上下文。当前较高维度为: assessment=0.48, hardening=0.23。 当前短板维度为: preservation, restoration。已分析日志条数: 4。",
+    "recovery": 0.05
+  },
+  "candidates_raw": [
+    {
+      "action_id": "a2",
+      "action_name": "采集 db-prod-01 内存与磁盘镜像",
+      "description": "在清除前先进行证据保全，支持溯源和合规。",
+      "target_stage": "preservation",
+      "estimated_cost": 20.0,
+      "risk_penalty": 0.15,
+      "confidence": 0.79,
+      "reasoning": "当前取证保全维度较低，优先补齐证据链。",
+      "command": "velociraptor collect --target db-prod-01 --profile memory,disk",
+      "api_call": "POST /forensics/acquire?asset=db-prod-01",
+      "effects": {
+        "containment": 0.0,
+        "assessment": 0.1,
+        "preservation": 0.45,
+        "eviction": 0.0,
+        "hardening": 0.0,
+        "restoration": 0.0
+      },
+      "target_assets": [
+        "db-prod-01"
+      ],
+      "capability_tags": [
+        "forensics_collection"
+      ],
+      "sub_steps": [
+        {
+          "name": "内存采集",
+          "cost_minutes": 18,
+          "mode": "parallel",
+          "group": "forensics"
+        },
+        {
+          "name": "磁盘采集",
+          "cost_minutes": 20,
+          "mode": "parallel",
+          "group": "forensics"
+        }
+      ],
+      "parallel_group": "forensics",
+      "id": "a2",
+      "name": "采集 db-prod-01 内存与磁盘镜像",
+      "stage": "preservation",
+      "risk": 0.15,
+      "cost_minutes": 20.0,
+      "reason": "当前取证保全维度较低，优先补齐证据链。"
+    },
+    {
+      "action_id": "a5",
+      "action_name": "恢复 db-prod-01 关键服务并验证",
+      "description": "恢复业务服务并执行验证，推进恢复完成。",
+      "target_stage": "restoration",
+      "estimated_cost": 12.0,
+      "risk_penalty": 0.3,
+      "confidence": 0.72,
+      "reasoning": "在遏制与清除后执行业务恢复与验证。",
+      "command": "systemctl restart critical-service && systemctl status critical-service",
+      "api_call": "POST /ops/recover?asset=db-prod-01",
+      "effects": {
+        "containment": 0.0,
+        "assessment": 0.1,
+        "preservation": 0.0,
+        "eviction": 0.0,
+        "hardening": 0.0,
+        "restoration": 0.45
+      },
+      "target_assets": [
+        "db-prod-01"
+      ],
+      "capability_tags": [
+        "service_recovery"
+      ],
+      "sub_steps": [
+        {
+          "name": "服务重启",
+          "cost_minutes": 8,
+          "mode": "serial"
+        },
+        {
+          "name": "健康检查",
+          "cost_minutes": 4,
+          "mode": "serial"
+        }
+      ],
+      "parallel_group": "recovery",
+      "id": "a5",
+      "name": "恢复 db-prod-01 关键服务并验证",
+      "stage": "restoration",
+      "risk": 0.3,
+      "cost_minutes": 12.0,
+      "reason": "在遏制与清除后执行业务恢复与验证。"
+    },
+    {
+      "action_id": "a1",
+      "action_name": "隔离 db-prod-01 的对外连接",
+      "description": "阻断可疑外联，优先遏制攻击扩散。",
+      "target_stage": "containment",
+      "estimated_cost": 8.0,
+      "risk_penalty": 0.25,
+      "confidence": 0.84,
+      "reasoning": "IOC显示存在C2外联，优先执行网络遏制。",
+      "command": "iptables -A OUTPUT -d 198.51.100.23 -j DROP",
+      "api_call": "POST /edr/isolate?asset=db-prod-01",
+      "effects": {
+        "containment": 0.35,
+        "assessment": 0.1,
+        "preservation": 0.0,
+        "eviction": 0.0,
+        "hardening": 0.0,
+        "restoration": 0.0
+      },
+      "target_assets": [
+        "db-prod-01"
+      ],
+      "capability_tags": [
+        "network_isolation"
+      ],
+      "sub_steps": [
+        {
+          "name": "封禁C2出口",
+          "cost_minutes": 5,
+          "mode": "serial"
+        },
+        {
+          "name": "应用EDR隔离",
+          "cost_minutes": 8,
+          "mode": "parallel",
+          "group": "contain"
+        }
+      ],
+      "parallel_group": "contain",
+      "id": "a1",
+      "name": "隔离 db-prod-01 的对外连接",
+      "stage": "containment",
+      "risk": 0.25,
+      "cost_minutes": 8.0,
+      "reason": "IOC显示存在C2外联，优先执行网络遏制。"
+    }
+  ],
+  "filter_audit": [],
+  "planning_trace": [
+    {
+      "action": {
+        "action_id": "a1",
+        "action_name": "隔离 db-prod-01 的对外连接",
+        "description": "阻断可疑外联，优先遏制攻击扩散。",
+        "target_stage": "containment",
+        "estimated_cost": 8.0,
+        "risk_penalty": 0.25,
+        "confidence": 0.84,
+        "reasoning": "IOC显示存在C2外联，优先执行网络遏制。",
+        "command": "iptables -A OUTPUT -d 198.51.100.23 -j DROP",
+        "api_call": "POST /edr/isolate?asset=db-prod-01",
+        "effects": {
+          "containment": 0.35,
+          "assessment": 0.1,
+          "preservation": 0.0,
+          "eviction": 0.0,
+          "hardening": 0.0,
+          "restoration": 0.0
+        },
+        "target_assets": [
+          "db-prod-01"
+        ],
+        "capability_tags": [
+          "network_isolation"
+        ],
+        "sub_steps": [
+          {
+            "name": "封禁C2出口",
+            "cost_minutes": 5,
+            "mode": "serial"
+          },
+          {
+            "name": "应用EDR隔离",
+            "cost_minutes": 8,
+            "mode": "parallel",
+            "group": "contain"
+          }
+        ],
+        "parallel_group": "contain",
+        "id": "a1",
+        "name": "隔离 db-prod-01 的对外连接",
+        "stage": "containment",
+        "risk": 0.25,
+        "cost_minutes": 8.0,
+        "reason": "IOC显示存在C2外联，优先执行网络遏制。"
+      },
+      "projected_state": {
+        "containment": 0.6267,
+        "assessment": 0.7133,
+        "preservation": 0.35,
+        "eviction": 0.3767,
+        "hardening": 0.23,
+        "restoration": 0.35
+      },
+      "rollout_results": [
+        {
+          "projected_state": {
+            "containment": 0.66,
+            "assessment": 0.68,
+            "preservation": 0.5,
+            "eviction": 0.51,
+            "hardening": 0.23,
+            "restoration": 0.05
+          },
+          "cumulative_cost": 39.0,
+          "progress_gain": 0.25,
+          "projected_recovery_time": 39.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a1",
+            "a2",
+            "a3"
+          ]
+        },
+        {
+          "projected_state": {
+            "containment": 0.66,
+            "assessment": 0.68,
+            "preservation": 0.05,
+            "eviction": 0.51,
+            "hardening": 0.23,
+            "restoration": 0.5
+          },
+          "cumulative_cost": 31.0,
+          "progress_gain": 0.25,
+          "projected_recovery_time": 31.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a1",
+            "a3",
+            "a5"
+          ]
+        },
+        {
+          "projected_state": {
+            "containment": 0.56,
+            "assessment": 0.78,
+            "preservation": 0.5,
+            "eviction": 0.11,
+            "hardening": 0.23,
+            "restoration": 0.5
+          },
+          "cumulative_cost": 45.0,
+          "progress_gain": 0.2583,
+          "projected_recovery_time": 45.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a1",
+            "a5",
+            "a2"
+          ]
+        }
+      ],
+      "score": -14.306666666666672,
+      "hallucination_flag": false,
+      "validation_passed": true,
+      "selection_reason": "score=-14.307; progress_gain=0.253; cumulative_cost=38.33; risk_penalty=0.25."
+    },
+    {
+      "action": {
+        "action_id": "a5",
+        "action_name": "恢复 db-prod-01 关键服务并验证",
+        "description": "恢复业务服务并执行验证，推进恢复完成。",
+        "target_stage": "restoration",
+        "estimated_cost": 12.0,
+        "risk_penalty": 0.3,
+        "confidence": 0.72,
+        "reasoning": "在遏制与清除后执行业务恢复与验证。",
+        "command": "systemctl restart critical-service && systemctl status critical-service",
+        "api_call": "POST /ops/recover?asset=db-prod-01",
+        "effects": {
+          "containment": 0.0,
+          "assessment": 0.1,
+          "preservation": 0.0,
+          "eviction": 0.0,
+          "hardening": 0.0,
+          "restoration": 0.45
+        },
+        "target_assets": [
+          "db-prod-01"
+        ],
+        "capability_tags": [
+          "service_recovery"
+        ],
+        "sub_steps": [
+          {
+            "name": "服务重启",
+            "cost_minutes": 8,
+            "mode": "serial"
+          },
+          {
+            "name": "健康检查",
+            "cost_minutes": 4,
+            "mode": "serial"
+          }
+        ],
+        "parallel_group": "recovery",
+        "id": "a5",
+        "name": "恢复 db-prod-01 关键服务并验证",
+        "stage": "restoration",
+        "risk": 0.3,
+        "cost_minutes": 12.0,
+        "reason": "在遏制与清除后执行业务恢复与验证。"
+      },
+      "projected_state": {
+        "containment": 0.6267,
+        "assessment": 0.68,
+        "preservation": 0.05,
+        "eviction": 0.3767,
+        "hardening": 0.3967,
+        "restoration": 0.5333
+      },
+      "rollout_results": [
+        {
+          "projected_state": {
+            "containment": 0.66,
+            "assessment": 0.68,
+            "preservation": 0.05,
+            "eviction": 0.51,
+            "hardening": 0.23,
+            "restoration": 0.5
+          },
+          "cumulative_cost": 31.0,
+          "progress_gain": 0.25,
+          "projected_recovery_time": 31.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a5",
+            "a1",
+            "a3"
+          ]
+        },
+        {
+          "projected_state": {
+            "containment": 0.66,
+            "assessment": 0.68,
+            "preservation": 0.05,
+            "eviction": 0.51,
+            "hardening": 0.23,
+            "restoration": 0.5
+          },
+          "cumulative_cost": 31.0,
+          "progress_gain": 0.25,
+          "projected_recovery_time": 31.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a5",
+            "a3",
+            "a1"
+          ]
+        },
+        {
+          "projected_state": {
+            "containment": 0.56,
+            "assessment": 0.68,
+            "preservation": 0.05,
+            "eviction": 0.11,
+            "hardening": 0.73,
+            "restoration": 0.6
+          },
+          "cumulative_cost": 67.0,
+          "progress_gain": 0.2667,
+          "projected_recovery_time": 67.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a5",
+            "a1",
+            "a4"
+          ]
+        }
+      ],
+      "score": -18.943333333333335,
+      "hallucination_flag": false,
+      "validation_passed": true,
+      "selection_reason": "score=-18.943; progress_gain=0.256; cumulative_cost=43.00; risk_penalty=0.30."
+    },
+    {
+      "action": {
+        "action_id": "a2",
+        "action_name": "采集 db-prod-01 内存与磁盘镜像",
+        "description": "在清除前先进行证据保全，支持溯源和合规。",
+        "target_stage": "preservation",
+        "estimated_cost": 20.0,
+        "risk_penalty": 0.15,
+        "confidence": 0.79,
+        "reasoning": "当前取证保全维度较低，优先补齐证据链。",
+        "command": "velociraptor collect --target db-prod-01 --profile memory,disk",
+        "api_call": "POST /forensics/acquire?asset=db-prod-01",
+        "effects": {
+          "containment": 0.0,
+          "assessment": 0.1,
+          "preservation": 0.45,
+          "eviction": 0.0,
+          "hardening": 0.0,
+          "restoration": 0.0
+        },
+        "target_assets": [
+          "db-prod-01"
+        ],
+        "capability_tags": [
+          "forensics_collection"
+        ],
+        "sub_steps": [
+          {
+            "name": "内存采集",
+            "cost_minutes": 18,
+            "mode": "parallel",
+            "group": "forensics"
+          },
+          {
+            "name": "磁盘采集",
+            "cost_minutes": 20,
+            "mode": "parallel",
+            "group": "forensics"
+          }
+        ],
+        "parallel_group": "forensics",
+        "id": "a2",
+        "name": "采集 db-prod-01 内存与磁盘镜像",
+        "stage": "preservation",
+        "risk": 0.15,
+        "cost_minutes": 20.0,
+        "reason": "当前取证保全维度较低，优先补齐证据链。"
+      },
+      "projected_state": {
+        "containment": 0.31,
+        "assessment": 0.6133,
+        "preservation": 0.5,
+        "eviction": 0.51,
+        "hardening": 0.5633,
+        "restoration": 0.2667
+      },
+      "rollout_results": [
+        {
+          "projected_state": {
+            "containment": 0.31,
+            "assessment": 0.58,
+            "preservation": 0.5,
+            "eviction": 0.51,
+            "hardening": 0.73,
+            "restoration": 0.15
+          },
+          "cumulative_cost": 68.0,
+          "progress_gain": 0.275,
+          "projected_recovery_time": 68.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a2",
+            "a3",
+            "a4"
+          ]
+        },
+        {
+          "projected_state": {
+            "containment": 0.31,
+            "assessment": 0.58,
+            "preservation": 0.5,
+            "eviction": 0.51,
+            "hardening": 0.73,
+            "restoration": 0.15
+          },
+          "cumulative_cost": 68.0,
+          "progress_gain": 0.275,
+          "projected_recovery_time": 68.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a2",
+            "a3",
+            "a4"
+          ]
+        },
+        {
+          "projected_state": {
+            "containment": 0.31,
+            "assessment": 0.68,
+            "preservation": 0.5,
+            "eviction": 0.51,
+            "hardening": 0.23,
+            "restoration": 0.5
+          },
+          "cumulative_cost": 38.0,
+          "progress_gain": 0.2667,
+          "projected_recovery_time": 38.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a2",
+            "a3",
+            "a5"
+          ]
+        }
+      ],
+      "score": -31.526666666666667,
+      "hallucination_flag": false,
+      "validation_passed": true,
+      "selection_reason": "score=-31.527; progress_gain=0.272; cumulative_cost=58.00; risk_penalty=0.15."
+    }
+  ],
+  "scores": [
+    {
+      "action_id": "a1",
+      "score": -14.306666666666672,
+      "validation_passed": true
+    },
+    {
+      "action_id": "a5",
+      "score": -18.943333333333335,
+      "validation_passed": true
+    },
+    {
+      "action_id": "a2",
+      "score": -31.526666666666667,
+      "validation_passed": true
+    }
+  ],
+  "best_action_reason": "score=-14.307; progress_gain=0.253; cumulative_cost=38.33; risk_penalty=0.25.",
+  "final_output": {
+    "audit_result": "pass",
+    "execution_allowed": true,
+    "best_action": {
+      "action_id": "a1",
+      "action_name": "隔离 db-prod-01 的对外连接",
+      "description": "阻断可疑外联，优先遏制攻击扩散。",
+      "target_stage": "containment",
+      "estimated_cost": 8.0,
+      "risk_penalty": 0.25,
+      "confidence": 0.84,
+      "reasoning": "IOC显示存在C2外联，优先执行网络遏制。",
+      "command": "iptables -A OUTPUT -d 198.51.100.23 -j DROP",
+      "api_call": "POST /edr/isolate?asset=db-prod-01",
+      "effects": {
+        "containment": 0.35,
+        "assessment": 0.1,
+        "preservation": 0.0,
+        "eviction": 0.0,
+        "hardening": 0.0,
+        "restoration": 0.0
+      },
+      "target_assets": [
+        "db-prod-01"
+      ],
+      "capability_tags": [
+        "network_isolation"
+      ],
+      "sub_steps": [
+        {
+          "name": "封禁C2出口",
+          "cost_minutes": 5,
+          "mode": "serial"
+        },
+        {
+          "name": "应用EDR隔离",
+          "cost_minutes": 8,
+          "mode": "parallel",
+          "group": "contain"
+        }
+      ],
+      "parallel_group": "contain",
+      "id": "a1",
+      "name": "隔离 db-prod-01 的对外连接",
+      "stage": "containment",
+      "risk": 0.25,
+      "cost_minutes": 8.0,
+      "reason": "IOC显示存在C2外联，优先执行网络遏制。"
+    },
+    "confidence_model": {
+      "detection_confidence": 1.0,
+      "response_confidence": 0.8069,
+      "execution_confidence": 0.8069,
+      "audit_factor": 1.0
+    }
+  },
+  "agent_layers": {
+    "enabled": true,
+    "context_profile": {
+      "business_context": "default_soc_context",
+      "critical_assets": [
+        "db-prod-01",
+        "web-prod-02"
+      ],
+      "asset_count": 2,
+      "ioc_count": 4
+    },
+    "identified_threats": [
+      {
+        "type": "rule_match",
+        "threat": "RULE-SIGMA-001",
+        "rule_id": "RULE-SIGMA-001",
+        "ttp": "attack.t1059.001",
+        "severity": 0.86,
+        "confidence": 0.8,
+        "source": "rule_findings",
+        "asset_priority_boost": 0.1
+      },
+      {
+        "type": "rule_match",
+        "threat": "RULE-CVE-CVE_2019_5129",
+        "rule_id": "RULE-CVE-CVE_2019_5129",
+        "ttp": "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')",
+        "severity": 1.0,
+        "confidence": 0.9,
+        "source": "rule_findings",
+        "asset_priority_boost": 0.1
+      },
+      {
+        "type": "cve_risk",
+        "threat": "Palo Alto PAN-OS command injection",
+        "cve": "CVE-2024-3400",
+        "severity": 10.0,
+        "confidence": 0.0,
+        "source": "cve_findings",
+        "asset_priority_boost": 0.1
+      }
+    ],
+    "prioritized_threats": [
+      {
+        "type": "cve_risk",
+        "threat": "Palo Alto PAN-OS command injection",
+        "cve": "CVE-2024-3400",
+        "severity": 10.0,
+        "confidence": 0.0,
+        "source": "cve_findings",
+        "asset_priority_boost": 0.1,
+        "priority_score": 6.65
+      },
+      {
+        "type": "rule_match",
+        "threat": "RULE-CVE-CVE_2019_5129",
+        "rule_id": "RULE-CVE-CVE_2019_5129",
+        "ttp": "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')",
+        "severity": 1.0,
+        "confidence": 0.9,
+        "source": "rule_findings",
+        "asset_priority_boost": 0.1,
+        "priority_score": 1.115
+      },
+      {
+        "type": "rule_match",
+        "threat": "RULE-SIGMA-001",
+        "rule_id": "RULE-SIGMA-001",
+        "ttp": "attack.t1059.001",
+        "severity": 0.86,
+        "confidence": 0.8,
+        "source": "rule_findings",
+        "asset_priority_boost": 0.1,
+        "priority_score": 0.989
+      }
+    ],
+    "hunt_queries": [
+      {
+        "stage": "execution",
+        "threat": "Palo Alto PAN-OS command injection",
+        "query_type": "log_search",
+        "query": "(\"198.51.100.23\" OR \"malicious-updates.example\" OR \"CVE-2024-3400\" OR \"rclone.exe\") AND stage:execution",
+        "confidence": 0.99,
+        "ttp": "Unknown",
+        "query_terms": [
+          "198.51.100.23",
+          "malicious-updates.example",
+          "CVE-2024-3400",
+          "rclone.exe"
+        ],
+        "templates": {
+          "sql": "SELECT timestamp, src_ip, dst_ip, message, stage, asset FROM security_events WHERE (message ILIKE '%198.51.100.23%' OR message ILIKE '%malicious-updates.example%' OR message ILIKE '%CVE-2024-3400%' OR message ILIKE '%rclone.exe%') AND stage = 'execution' ORDER BY timestamp DESC LIMIT 100;",
+          "elasticsearch_dsl": {
+            "size": 100,
+            "sort": [
+              {
+                "timestamp": {
+                  "order": "desc"
+                }
+              }
+            ],
+            "_source": [
+              "timestamp",
+              "src_ip",
+              "dst_ip",
+              "message",
+              "stage",
+              "asset",
+              "ttp"
+            ],
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "stage.keyword": "execution"
+                    }
+                  }
+                ],
+                "should": [
+                  {
+                    "match_phrase": {
+                      "message": "198.51.100.23"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "198.51.100.23"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "malicious-updates.example"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "malicious-updates.example"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "CVE-2024-3400"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "CVE-2024-3400"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "rclone.exe"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "rclone.exe"
+                    }
+                  }
+                ],
+                "minimum_should_match": 1,
+                "filter": []
+              }
+            }
+          },
+          "splunk_spl": "search index=security_events (message=\"*198.51.100.23*\" OR message=\"*malicious-updates.example*\" OR message=\"*CVE-2024-3400*\" OR message=\"*rclone.exe*\") stage=\"execution\" | table _time src_ip dst_ip stage asset ttp message | sort - _time | head 100",
+          "metadata": {
+            "stage": "execution",
+            "ttp": "Unknown",
+            "threat": "Palo Alto PAN-OS command injection",
+            "term_count": 4
+          }
+        }
+      },
+      {
+        "stage": "execution",
+        "threat": "RULE-CVE-CVE_2019_5129",
+        "query_type": "log_search",
+        "query": "(\"198.51.100.23\" OR \"malicious-updates.example\" OR \"CVE-2024-3400\" OR \"rclone.exe\") AND stage:execution",
+        "confidence": 0.99,
+        "ttp": "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')",
+        "query_terms": [
+          "198.51.100.23",
+          "malicious-updates.example",
+          "CVE-2024-3400",
+          "rclone.exe"
+        ],
+        "templates": {
+          "sql": "SELECT timestamp, src_ip, dst_ip, message, stage, asset FROM security_events WHERE (message ILIKE '%198.51.100.23%' OR message ILIKE '%malicious-updates.example%' OR message ILIKE '%CVE-2024-3400%' OR message ILIKE '%rclone.exe%') AND stage = 'execution' ORDER BY timestamp DESC LIMIT 100;",
+          "elasticsearch_dsl": {
+            "size": 100,
+            "sort": [
+              {
+                "timestamp": {
+                  "order": "desc"
+                }
+              }
+            ],
+            "_source": [
+              "timestamp",
+              "src_ip",
+              "dst_ip",
+              "message",
+              "stage",
+              "asset",
+              "ttp"
+            ],
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "stage.keyword": "execution"
+                    }
+                  }
+                ],
+                "should": [
+                  {
+                    "match_phrase": {
+                      "message": "198.51.100.23"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "198.51.100.23"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "malicious-updates.example"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "malicious-updates.example"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "CVE-2024-3400"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "CVE-2024-3400"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "rclone.exe"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "rclone.exe"
+                    }
+                  }
+                ],
+                "minimum_should_match": 1,
+                "filter": [
+                  {
+                    "term": {
+                      "ttp.keyword": "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "splunk_spl": "search index=security_events (message=\"*198.51.100.23*\" OR message=\"*malicious-updates.example*\" OR message=\"*CVE-2024-3400*\" OR message=\"*rclone.exe*\") stage=\"execution\" ttp=\"CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')\" | table _time src_ip dst_ip stage asset ttp message | sort - _time | head 100",
+          "metadata": {
+            "stage": "execution",
+            "ttp": "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')",
+            "threat": "RULE-CVE-CVE_2019_5129",
+            "term_count": 4
+          }
+        }
+      },
+      {
+        "stage": "execution",
+        "threat": "RULE-SIGMA-001",
+        "query_type": "log_search",
+        "query": "(\"198.51.100.23\" OR \"malicious-updates.example\" OR \"CVE-2024-3400\" OR \"rclone.exe\") AND stage:execution",
+        "confidence": 0.989,
+        "ttp": "attack.t1059.001",
+        "query_terms": [
+          "198.51.100.23",
+          "malicious-updates.example",
+          "CVE-2024-3400",
+          "rclone.exe"
+        ],
+        "templates": {
+          "sql": "SELECT timestamp, src_ip, dst_ip, message, stage, asset FROM security_events WHERE (message ILIKE '%198.51.100.23%' OR message ILIKE '%malicious-updates.example%' OR message ILIKE '%CVE-2024-3400%' OR message ILIKE '%rclone.exe%') AND stage = 'execution' ORDER BY timestamp DESC LIMIT 100;",
+          "elasticsearch_dsl": {
+            "size": 100,
+            "sort": [
+              {
+                "timestamp": {
+                  "order": "desc"
+                }
+              }
+            ],
+            "_source": [
+              "timestamp",
+              "src_ip",
+              "dst_ip",
+              "message",
+              "stage",
+              "asset",
+              "ttp"
+            ],
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "stage.keyword": "execution"
+                    }
+                  }
+                ],
+                "should": [
+                  {
+                    "match_phrase": {
+                      "message": "198.51.100.23"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "198.51.100.23"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "malicious-updates.example"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "malicious-updates.example"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "CVE-2024-3400"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "CVE-2024-3400"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "rclone.exe"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "rclone.exe"
+                    }
+                  }
+                ],
+                "minimum_should_match": 1,
+                "filter": [
+                  {
+                    "term": {
+                      "ttp.keyword": "attack.t1059.001"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "splunk_spl": "search index=security_events (message=\"*198.51.100.23*\" OR message=\"*malicious-updates.example*\" OR message=\"*CVE-2024-3400*\" OR message=\"*rclone.exe*\") stage=\"execution\" ttp=\"attack.t1059.001\" | table _time src_ip dst_ip stage asset ttp message | sort - _time | head 100",
+          "metadata": {
+            "stage": "execution",
+            "ttp": "attack.t1059.001",
+            "threat": "RULE-SIGMA-001",
+            "term_count": 4
+          }
+        }
+      }
+    ],
+    "stage_runtime_ms": {
+      "identify": 0,
+      "analyze": 0,
+      "hunt": 0
+    },
+    "elapsed_ms": 0,
+    "cache_hit": false
+  },
+  "evidence_trace_tree": {
+    "root": {
+      "event_summary": "IDS detects suspicious outbound traffic and privilege escalation on db-prod-01",
+      "top_threat": "Palo Alto PAN-OS command injection",
+      "detection_confidence": 1.0
+    },
+    "supporting_nodes": [
+      {
+        "type": "rule",
+        "label": "RULE-SIGMA-001",
+        "confidence": 0.8,
+        "severity": 0.86,
+        "evidence_id": "EVID-0007",
+        "support": "powershell -enc"
+      },
+      {
+        "type": "rule",
+        "label": "RULE-CVE-CVE_2019_5129",
+        "confidence": 0.9,
+        "severity": 1.0,
+        "evidence_id": "EVID-0008",
+        "support": "CVE-2019-5129 | command | injection | have | been"
+      },
+      {
+        "type": "cve",
+        "label": "CVE-2024-3400",
+        "confidence": 10.0,
+        "severity": 10.0,
+        "evidence_id": "EVID-0001",
+        "support": "Palo Alto PAN-OS command injection"
+      },
+      {
+        "type": "ioc",
+        "label": "198.51.100.23",
+        "confidence": 0.91,
+        "severity": 0.0,
+        "evidence_id": "EVID-0003",
+        "support": "C2 IP"
+      },
+      {
+        "type": "ioc",
+        "label": "malicious-updates.example",
+        "confidence": 0.87,
+        "severity": 0.0,
+        "evidence_id": "EVID-0004",
+        "support": "Phishing domain"
+      },
+      {
+        "type": "ioc",
+        "label": "rclone.exe",
+        "confidence": 0.73,
+        "severity": 0.0,
+        "evidence_id": "EVID-0005",
+        "support": "Potential exfiltration tooling"
+      }
+    ],
+    "log_nodes": [
+      {
+        "type": "raw_log",
+        "label": "log#1",
+        "support": "EDR alert: rclone.exe spawned by unknown parent process"
+      },
+      {
+        "type": "raw_log",
+        "label": "log#2",
+        "support": "Firewall detected repeated outbound connections to 198.51.100.23:443"
+      },
+      {
+        "type": "raw_log",
+        "label": "log#3",
+        "support": "Sysmon Event ID 10 indicates credential dumping pattern"
+      }
+    ],
+    "downgrade_reasons": []
+  },
+  "observability": {
+    "stage_elapsed_ms": {
+      "triage": 0,
+      "rag": 1766,
+      "planning": 47285,
+      "audit": 0
+    },
+    "cache_hit": {
+      "rag": false,
+      "layered_agents": false
+    },
+    "planner": {
+      "early_stop_count": 0,
+      "ranked_action_count": 3
+    }
+  },
+  "frontend_explainability": {
+    "schema_version": "v1",
+    "summary_cards": [
+      {
+        "key": "top_threat",
+        "label": "首要威胁",
+        "value": "Palo Alto PAN-OS command injection",
+        "tone": "danger"
+      },
+      {
+        "key": "recommended_action",
+        "label": "推荐动作",
+        "value": "隔离 db-prod-01 的对外连接",
+        "tone": "primary"
+      },
+      {
+        "key": "audit_result",
+        "label": "审计结果",
+        "value": "pass",
+        "tone": "info"
+      },
+      {
+        "key": "execution_allowed",
+        "label": "是否可执行",
+        "value": "是",
+        "tone": "success"
+      }
+    ],
+    "confidence_panel": {
+      "scores": {
+        "detection_confidence": 1.0,
+        "response_confidence": 0.8069,
+        "execution_confidence": 0.8069
+      },
+      "levels": {
+        "detection_confidence": "高",
+        "response_confidence": "中",
+        "execution_confidence": "中"
+      },
+      "breakdown": [
+        {
+          "key": "rule_confidence",
+          "label": "规则证据强度",
+          "value": 0.9,
+          "weight": "high"
+        },
+        {
+          "key": "cve_severity",
+          "label": "CVE严重度归一化",
+          "value": 1.0,
+          "weight": "medium"
+        },
+        {
+          "key": "ioc_confidence",
+          "label": "IOC置信度",
+          "value": 0.91,
+          "weight": "medium"
+        },
+        {
+          "key": "audit_factor",
+          "label": "审计系数",
+          "value": 1.0,
+          "weight": "high"
+        }
+      ]
+    },
+    "evidence_graph": {
+      "root_id": "event-root",
+      "nodes": [
+        {
+          "id": "event-root",
+          "type": "incident",
+          "label": "IDS detects suspicious outbound traffic and privilege escalation on db-prod-01",
+          "title": "事件根节点",
+          "subtitle": "Palo Alto PAN-OS command injection",
+          "severity": "high",
+          "meta": {
+            "detection_confidence": 1.0,
+            "asset_count": 2
+          }
+        },
+        {
+          "id": "support-1",
+          "type": "rule",
+          "label": "RULE-SIGMA-001",
+          "title": "powershell -enc",
+          "subtitle": "confidence=0.8",
+          "severity": "medium",
+          "meta": {
+            "evidence_id": "EVID-0007",
+            "severity": 0.86
+          }
+        },
+        {
+          "id": "support-2",
+          "type": "rule",
+          "label": "RULE-CVE-CVE_2019_5129",
+          "title": "CVE-2019-5129 | command | injection | have | been",
+          "subtitle": "confidence=0.9",
+          "severity": "high",
+          "meta": {
+            "evidence_id": "EVID-0008",
+            "severity": 1.0
+          }
+        },
+        {
+          "id": "support-3",
+          "type": "cve",
+          "label": "CVE-2024-3400",
+          "title": "Palo Alto PAN-OS command injection",
+          "subtitle": "confidence=10.0",
+          "severity": "high",
+          "meta": {
+            "evidence_id": "EVID-0001",
+            "severity": 10.0
+          }
+        },
+        {
+          "id": "support-4",
+          "type": "ioc",
+          "label": "198.51.100.23",
+          "title": "C2 IP",
+          "subtitle": "confidence=0.91",
+          "severity": "high",
+          "meta": {
+            "evidence_id": "EVID-0003",
+            "severity": 0.0
+          }
+        },
+        {
+          "id": "support-5",
+          "type": "ioc",
+          "label": "malicious-updates.example",
+          "title": "Phishing domain",
+          "subtitle": "confidence=0.87",
+          "severity": "high",
+          "meta": {
+            "evidence_id": "EVID-0004",
+            "severity": 0.0
+          }
+        },
+        {
+          "id": "support-6",
+          "type": "ioc",
+          "label": "rclone.exe",
+          "title": "Potential exfiltration tooling",
+          "subtitle": "confidence=0.73",
+          "severity": "medium",
+          "meta": {
+            "evidence_id": "EVID-0005",
+            "severity": 0.0
+          }
+        },
+        {
+          "id": "log-1",
+          "type": "log",
+          "label": "log#1",
+          "title": "EDR alert: rclone.exe spawned by unknown parent process",
+          "subtitle": "raw_log",
+          "severity": "low",
+          "meta": {}
+        },
+        {
+          "id": "log-2",
+          "type": "log",
+          "label": "log#2",
+          "title": "Firewall detected repeated outbound connections to 198.51.100.23:443",
+          "subtitle": "raw_log",
+          "severity": "low",
+          "meta": {}
+        },
+        {
+          "id": "log-3",
+          "type": "log",
+          "label": "log#3",
+          "title": "Sysmon Event ID 10 indicates credential dumping pattern",
+          "subtitle": "raw_log",
+          "severity": "low",
+          "meta": {}
+        }
+      ],
+      "edges": [
+        {
+          "from": "event-root",
+          "to": "support-1",
+          "relation": "supports"
+        },
+        {
+          "from": "event-root",
+          "to": "support-2",
+          "relation": "supports"
+        },
+        {
+          "from": "event-root",
+          "to": "support-3",
+          "relation": "supports"
+        },
+        {
+          "from": "event-root",
+          "to": "support-4",
+          "relation": "supports"
+        },
+        {
+          "from": "event-root",
+          "to": "support-5",
+          "relation": "supports"
+        },
+        {
+          "from": "event-root",
+          "to": "support-6",
+          "relation": "supports"
+        },
+        {
+          "from": "event-root",
+          "to": "log-1",
+          "relation": "observed_in"
+        },
+        {
+          "from": "event-root",
+          "to": "log-2",
+          "relation": "observed_in"
+        },
+        {
+          "from": "event-root",
+          "to": "log-3",
+          "relation": "observed_in"
+        }
+      ],
+      "legend": {
+        "incident": "事件",
+        "rule": "规则",
+        "cve": "漏洞",
+        "ioc": "IOC",
+        "log": "日志片段"
+      }
+    },
+    "downgrade_explanations": [],
+    "review_checklist": [
+      {
+        "key": "check_top_threat",
+        "label": "确认首要威胁是否符合人工研判",
+        "status": "todo"
+      },
+      {
+        "key": "check_action",
+        "label": "确认推荐动作与资产影响范围",
+        "status": "todo"
+      },
+      {
+        "key": "check_evidence",
+        "label": "复核关键证据节点与原始日志",
+        "status": "todo"
+      }
+    ],
+    "timeline": [
+      {
+        "id": "tl-1",
+        "stage": "detection",
+        "label": "威胁检测",
+        "value": "规则=2 / CVE=1"
+      },
+      {
+        "id": "tl-2",
+        "stage": "analysis",
+        "label": "威胁分析",
+        "value": "优先威胁=3"
+      },
+      {
+        "id": "tl-3",
+        "stage": "response",
+        "label": "响应规划",
+        "value": "隔离 db-prod-01 的对外连接"
+      },
+      {
+        "id": "tl-4",
+        "stage": "audit",
+        "label": "执行审计",
+        "value": "pass"
+      }
+    ],
+    "hunt_query_tabs": [
+      {
+        "id": "hunt-1",
+        "title": "Palo Alto PAN-OS command injection",
+        "stage": "execution",
+        "sql": "SELECT timestamp, src_ip, dst_ip, message, stage, asset FROM security_events WHERE (message ILIKE '%198.51.100.23%' OR message ILIKE '%malicious-updates.example%' OR message ILIKE '%CVE-2024-3400%' OR message ILIKE '%rclone.exe%') AND stage = 'execution' ORDER BY timestamp DESC LIMIT 100;",
+        "elasticsearch_dsl": {
+          "size": 100,
+          "sort": [
+            {
+              "timestamp": {
+                "order": "desc"
+              }
+            }
+          ],
+          "_source": [
+            "timestamp",
+            "src_ip",
+            "dst_ip",
+            "message",
+            "stage",
+            "asset",
+            "ttp"
+          ],
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "stage.keyword": "execution"
+                  }
+                }
+              ],
+              "should": [
+                {
+                  "match_phrase": {
+                    "message": "198.51.100.23"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "ioc": "198.51.100.23"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "message": "malicious-updates.example"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "ioc": "malicious-updates.example"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "message": "CVE-2024-3400"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "ioc": "CVE-2024-3400"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "message": "rclone.exe"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "ioc": "rclone.exe"
+                  }
+                }
+              ],
+              "minimum_should_match": 1,
+              "filter": []
+            }
+          }
+        },
+        "splunk_spl": "search index=security_events (message=\"*198.51.100.23*\" OR message=\"*malicious-updates.example*\" OR message=\"*CVE-2024-3400*\" OR message=\"*rclone.exe*\") stage=\"execution\" | table _time src_ip dst_ip stage asset ttp message | sort - _time | head 100"
+      },
+      {
+        "id": "hunt-2",
+        "title": "RULE-CVE-CVE_2019_5129",
+        "stage": "execution",
+        "sql": "SELECT timestamp, src_ip, dst_ip, message, stage, asset FROM security_events WHERE (message ILIKE '%198.51.100.23%' OR message ILIKE '%malicious-updates.example%' OR message ILIKE '%CVE-2024-3400%' OR message ILIKE '%rclone.exe%') AND stage = 'execution' ORDER BY timestamp DESC LIMIT 100;",
+        "elasticsearch_dsl": {
+          "size": 100,
+          "sort": [
+            {
+              "timestamp": {
+                "order": "desc"
+              }
+            }
+          ],
+          "_source": [
+            "timestamp",
+            "src_ip",
+            "dst_ip",
+            "message",
+            "stage",
+            "asset",
+            "ttp"
+          ],
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "stage.keyword": "execution"
+                  }
+                }
+              ],
+              "should": [
+                {
+                  "match_phrase": {
+                    "message": "198.51.100.23"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "ioc": "198.51.100.23"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "message": "malicious-updates.example"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "ioc": "malicious-updates.example"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "message": "CVE-2024-3400"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "ioc": "CVE-2024-3400"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "message": "rclone.exe"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "ioc": "rclone.exe"
+                  }
+                }
+              ],
+              "minimum_should_match": 1,
+              "filter": [
+                {
+                  "term": {
+                    "ttp.keyword": "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "splunk_spl": "search index=security_events (message=\"*198.51.100.23*\" OR message=\"*malicious-updates.example*\" OR message=\"*CVE-2024-3400*\" OR message=\"*rclone.exe*\") stage=\"execution\" ttp=\"CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')\" | table _time src_ip dst_ip stage asset ttp message | sort - _time | head 100"
+      },
+      {
+        "id": "hunt-3",
+        "title": "RULE-SIGMA-001",
+        "stage": "execution",
+        "sql": "SELECT timestamp, src_ip, dst_ip, message, stage, asset FROM security_events WHERE (message ILIKE '%198.51.100.23%' OR message ILIKE '%malicious-updates.example%' OR message ILIKE '%CVE-2024-3400%' OR message ILIKE '%rclone.exe%') AND stage = 'execution' ORDER BY timestamp DESC LIMIT 100;",
+        "elasticsearch_dsl": {
+          "size": 100,
+          "sort": [
+            {
+              "timestamp": {
+                "order": "desc"
+              }
+            }
+          ],
+          "_source": [
+            "timestamp",
+            "src_ip",
+            "dst_ip",
+            "message",
+            "stage",
+            "asset",
+            "ttp"
+          ],
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "stage.keyword": "execution"
+                  }
+                }
+              ],
+              "should": [
+                {
+                  "match_phrase": {
+                    "message": "198.51.100.23"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "ioc": "198.51.100.23"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "message": "malicious-updates.example"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "ioc": "malicious-updates.example"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "message": "CVE-2024-3400"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "ioc": "CVE-2024-3400"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "message": "rclone.exe"
+                  }
+                },
+                {
+                  "match_phrase": {
+                    "ioc": "rclone.exe"
+                  }
+                }
+              ],
+              "minimum_should_match": 1,
+              "filter": [
+                {
+                  "term": {
+                    "ttp.keyword": "attack.t1059.001"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "splunk_spl": "search index=security_events (message=\"*198.51.100.23*\" OR message=\"*malicious-updates.example*\" OR message=\"*CVE-2024-3400*\" OR message=\"*rclone.exe*\") stage=\"execution\" ttp=\"attack.t1059.001\" | table _time src_ip dst_ip stage asset ttp message | sort - _time | head 100"
+      }
+    ],
+    "observability_panel": {
+      "cache_hit": {
+        "rag": false,
+        "layered_agents": false
+      },
+      "planner": {
+        "early_stop_count": 0,
+        "ranked_action_count": 3
+      },
+      "stage_elapsed_ms": {
+        "triage": 0,
+        "rag": 1766,
+        "planning": 47285,
+        "audit": 0
+      }
+    },
+    "historical_case_panel": {
+      "has_false_positive_pattern": false,
+      "benign_like_count": 0,
+      "malicious_like_count": 0,
+      "cases": []
+    }
+  },
+  "frontend_payload": {
+    "schema_version": "frontend-payload/v1",
+    "page_title": "安全事件研判面板",
+    "incident_overview": {
+      "event_summary": "IDS detects suspicious outbound traffic and privilege escalation on db-prod-01",
+      "affected_assets": [
+        "db-prod-01",
+        "web-prod-02"
+      ],
+      "ioc": {
+        "ip": [
+          "198.51.100.23"
+        ],
+        "domain": [
+          "malicious-updates.example"
+        ],
+        "cve": [
+          "CVE-2024-3400"
+        ],
+        "process": [
+          "rclone.exe"
+        ]
+      },
+      "timestamp": "2026-04-12T08:30:00Z",
+      "source": "json"
+    },
+    "cards": [
+      {
+        "key": "top_threat",
+        "label": "首要威胁",
+        "value": "Palo Alto PAN-OS command injection",
+        "tone": "danger"
+      },
+      {
+        "key": "recommended_action",
+        "label": "推荐动作",
+        "value": "隔离 db-prod-01 的对外连接",
+        "tone": "primary"
+      },
+      {
+        "key": "audit_result",
+        "label": "审计结果",
+        "value": "pass",
+        "tone": "info"
+      },
+      {
+        "key": "execution_allowed",
+        "label": "是否可执行",
+        "value": "是",
+        "tone": "success"
+      }
+    ],
+    "confidence": {
+      "scores": {
+        "detection_confidence": 1.0,
+        "response_confidence": 0.8069,
+        "execution_confidence": 0.8069
+      },
+      "levels": {
+        "detection_confidence": "高",
+        "response_confidence": "中",
+        "execution_confidence": "中"
+      },
+      "breakdown": [
+        {
+          "key": "rule_confidence",
+          "label": "规则证据强度",
+          "value": 0.9,
+          "weight": "high"
+        },
+        {
+          "key": "cve_severity",
+          "label": "CVE严重度归一化",
+          "value": 1.0,
+          "weight": "medium"
+        },
+        {
+          "key": "ioc_confidence",
+          "label": "IOC置信度",
+          "value": 0.91,
+          "weight": "medium"
+        },
+        {
+          "key": "audit_factor",
+          "label": "审计系数",
+          "value": 1.0,
+          "weight": "high"
+        }
+      ]
+    },
+    "evidence": {
+      "root_id": "event-root",
+      "nodes": [
+        {
+          "id": "event-root",
+          "type": "incident",
+          "label": "IDS detects suspicious outbound traffic and privilege escalation on db-prod-01",
+          "title": "事件根节点",
+          "subtitle": "Palo Alto PAN-OS command injection",
+          "severity": "high",
+          "meta": {
+            "detection_confidence": 1.0,
+            "asset_count": 2
+          }
+        },
+        {
+          "id": "support-1",
+          "type": "rule",
+          "label": "RULE-SIGMA-001",
+          "title": "powershell -enc",
+          "subtitle": "confidence=0.8",
+          "severity": "medium",
+          "meta": {
+            "evidence_id": "EVID-0007",
+            "severity": 0.86
+          }
+        },
+        {
+          "id": "support-2",
+          "type": "rule",
+          "label": "RULE-CVE-CVE_2019_5129",
+          "title": "CVE-2019-5129 | command | injection | have | been",
+          "subtitle": "confidence=0.9",
+          "severity": "high",
+          "meta": {
+            "evidence_id": "EVID-0008",
+            "severity": 1.0
+          }
+        },
+        {
+          "id": "support-3",
+          "type": "cve",
+          "label": "CVE-2024-3400",
+          "title": "Palo Alto PAN-OS command injection",
+          "subtitle": "confidence=10.0",
+          "severity": "high",
+          "meta": {
+            "evidence_id": "EVID-0001",
+            "severity": 10.0
+          }
+        },
+        {
+          "id": "support-4",
+          "type": "ioc",
+          "label": "198.51.100.23",
+          "title": "C2 IP",
+          "subtitle": "confidence=0.91",
+          "severity": "high",
+          "meta": {
+            "evidence_id": "EVID-0003",
+            "severity": 0.0
+          }
+        },
+        {
+          "id": "support-5",
+          "type": "ioc",
+          "label": "malicious-updates.example",
+          "title": "Phishing domain",
+          "subtitle": "confidence=0.87",
+          "severity": "high",
+          "meta": {
+            "evidence_id": "EVID-0004",
+            "severity": 0.0
+          }
+        },
+        {
+          "id": "support-6",
+          "type": "ioc",
+          "label": "rclone.exe",
+          "title": "Potential exfiltration tooling",
+          "subtitle": "confidence=0.73",
+          "severity": "medium",
+          "meta": {
+            "evidence_id": "EVID-0005",
+            "severity": 0.0
+          }
+        },
+        {
+          "id": "log-1",
+          "type": "log",
+          "label": "log#1",
+          "title": "EDR alert: rclone.exe spawned by unknown parent process",
+          "subtitle": "raw_log",
+          "severity": "low",
+          "meta": {}
+        },
+        {
+          "id": "log-2",
+          "type": "log",
+          "label": "log#2",
+          "title": "Firewall detected repeated outbound connections to 198.51.100.23:443",
+          "subtitle": "raw_log",
+          "severity": "low",
+          "meta": {}
+        },
+        {
+          "id": "log-3",
+          "type": "log",
+          "label": "log#3",
+          "title": "Sysmon Event ID 10 indicates credential dumping pattern",
+          "subtitle": "raw_log",
+          "severity": "low",
+          "meta": {}
+        }
+      ],
+      "edges": [
+        {
+          "from": "event-root",
+          "to": "support-1",
+          "relation": "supports"
+        },
+        {
+          "from": "event-root",
+          "to": "support-2",
+          "relation": "supports"
+        },
+        {
+          "from": "event-root",
+          "to": "support-3",
+          "relation": "supports"
+        },
+        {
+          "from": "event-root",
+          "to": "support-4",
+          "relation": "supports"
+        },
+        {
+          "from": "event-root",
+          "to": "support-5",
+          "relation": "supports"
+        },
+        {
+          "from": "event-root",
+          "to": "support-6",
+          "relation": "supports"
+        },
+        {
+          "from": "event-root",
+          "to": "log-1",
+          "relation": "observed_in"
+        },
+        {
+          "from": "event-root",
+          "to": "log-2",
+          "relation": "observed_in"
+        },
+        {
+          "from": "event-root",
+          "to": "log-3",
+          "relation": "observed_in"
+        }
+      ],
+      "legend": {
+        "incident": "事件",
+        "rule": "规则",
+        "cve": "漏洞",
+        "ioc": "IOC",
+        "log": "日志片段"
+      }
+    },
+    "downgrade": [],
+    "timeline": [
+      {
+        "id": "tl-1",
+        "stage": "detection",
+        "label": "威胁检测",
+        "value": "规则=2 / CVE=1"
+      },
+      {
+        "id": "tl-2",
+        "stage": "analysis",
+        "label": "威胁分析",
+        "value": "优先威胁=3"
+      },
+      {
+        "id": "tl-3",
+        "stage": "response",
+        "label": "响应规划",
+        "value": "隔离 db-prod-01 的对外连接"
+      },
+      {
+        "id": "tl-4",
+        "stage": "audit",
+        "label": "执行审计",
+        "value": "pass"
+      }
+    ],
+    "checklist": [
+      {
+        "key": "check_top_threat",
+        "label": "确认首要威胁是否符合人工研判",
+        "status": "todo"
+      },
+      {
+        "key": "check_action",
+        "label": "确认推荐动作与资产影响范围",
+        "status": "todo"
+      },
+      {
+        "key": "check_evidence",
+        "label": "复核关键证据节点与原始日志",
+        "status": "todo"
+      }
+    ],
+    "hunt": {
+      "tabs": [
+        {
+          "id": "hunt-1",
+          "title": "Palo Alto PAN-OS command injection",
+          "stage": "execution",
+          "sql": "SELECT timestamp, src_ip, dst_ip, message, stage, asset FROM security_events WHERE (message ILIKE '%198.51.100.23%' OR message ILIKE '%malicious-updates.example%' OR message ILIKE '%CVE-2024-3400%' OR message ILIKE '%rclone.exe%') AND stage = 'execution' ORDER BY timestamp DESC LIMIT 100;",
+          "elasticsearch_dsl": {
+            "size": 100,
+            "sort": [
+              {
+                "timestamp": {
+                  "order": "desc"
+                }
+              }
+            ],
+            "_source": [
+              "timestamp",
+              "src_ip",
+              "dst_ip",
+              "message",
+              "stage",
+              "asset",
+              "ttp"
+            ],
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "stage.keyword": "execution"
+                    }
+                  }
+                ],
+                "should": [
+                  {
+                    "match_phrase": {
+                      "message": "198.51.100.23"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "198.51.100.23"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "malicious-updates.example"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "malicious-updates.example"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "CVE-2024-3400"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "CVE-2024-3400"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "rclone.exe"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "rclone.exe"
+                    }
+                  }
+                ],
+                "minimum_should_match": 1,
+                "filter": []
+              }
+            }
+          },
+          "splunk_spl": "search index=security_events (message=\"*198.51.100.23*\" OR message=\"*malicious-updates.example*\" OR message=\"*CVE-2024-3400*\" OR message=\"*rclone.exe*\") stage=\"execution\" | table _time src_ip dst_ip stage asset ttp message | sort - _time | head 100"
+        },
+        {
+          "id": "hunt-2",
+          "title": "RULE-CVE-CVE_2019_5129",
+          "stage": "execution",
+          "sql": "SELECT timestamp, src_ip, dst_ip, message, stage, asset FROM security_events WHERE (message ILIKE '%198.51.100.23%' OR message ILIKE '%malicious-updates.example%' OR message ILIKE '%CVE-2024-3400%' OR message ILIKE '%rclone.exe%') AND stage = 'execution' ORDER BY timestamp DESC LIMIT 100;",
+          "elasticsearch_dsl": {
+            "size": 100,
+            "sort": [
+              {
+                "timestamp": {
+                  "order": "desc"
+                }
+              }
+            ],
+            "_source": [
+              "timestamp",
+              "src_ip",
+              "dst_ip",
+              "message",
+              "stage",
+              "asset",
+              "ttp"
+            ],
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "stage.keyword": "execution"
+                    }
+                  }
+                ],
+                "should": [
+                  {
+                    "match_phrase": {
+                      "message": "198.51.100.23"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "198.51.100.23"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "malicious-updates.example"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "malicious-updates.example"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "CVE-2024-3400"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "CVE-2024-3400"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "rclone.exe"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "rclone.exe"
+                    }
+                  }
+                ],
+                "minimum_should_match": 1,
+                "filter": [
+                  {
+                    "term": {
+                      "ttp.keyword": "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "splunk_spl": "search index=security_events (message=\"*198.51.100.23*\" OR message=\"*malicious-updates.example*\" OR message=\"*CVE-2024-3400*\" OR message=\"*rclone.exe*\") stage=\"execution\" ttp=\"CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')\" | table _time src_ip dst_ip stage asset ttp message | sort - _time | head 100"
+        },
+        {
+          "id": "hunt-3",
+          "title": "RULE-SIGMA-001",
+          "stage": "execution",
+          "sql": "SELECT timestamp, src_ip, dst_ip, message, stage, asset FROM security_events WHERE (message ILIKE '%198.51.100.23%' OR message ILIKE '%malicious-updates.example%' OR message ILIKE '%CVE-2024-3400%' OR message ILIKE '%rclone.exe%') AND stage = 'execution' ORDER BY timestamp DESC LIMIT 100;",
+          "elasticsearch_dsl": {
+            "size": 100,
+            "sort": [
+              {
+                "timestamp": {
+                  "order": "desc"
+                }
+              }
+            ],
+            "_source": [
+              "timestamp",
+              "src_ip",
+              "dst_ip",
+              "message",
+              "stage",
+              "asset",
+              "ttp"
+            ],
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "stage.keyword": "execution"
+                    }
+                  }
+                ],
+                "should": [
+                  {
+                    "match_phrase": {
+                      "message": "198.51.100.23"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "198.51.100.23"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "malicious-updates.example"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "malicious-updates.example"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "CVE-2024-3400"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "CVE-2024-3400"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "rclone.exe"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "rclone.exe"
+                    }
+                  }
+                ],
+                "minimum_should_match": 1,
+                "filter": [
+                  {
+                    "term": {
+                      "ttp.keyword": "attack.t1059.001"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "splunk_spl": "search index=security_events (message=\"*198.51.100.23*\" OR message=\"*malicious-updates.example*\" OR message=\"*CVE-2024-3400*\" OR message=\"*rclone.exe*\") stage=\"execution\" ttp=\"attack.t1059.001\" | table _time src_ip dst_ip stage asset ttp message | sort - _time | head 100"
+        }
+      ],
+      "count": 3
+    },
+    "execution": {
+      "mode": "hybrid",
+      "guardrails": [
+        "仅在audit_result=pass且execution_allowed=true时允许下发",
+        "执行前确认目标资产列表与当前事件一致",
+        "Shell命令需在隔离或受控终端中执行",
+        "API调用需校验鉴权与变更窗口",
+        "优先针对资产 db-prod-01 执行"
+      ],
+      "playbook": {
+        "playbook_id": "playbook-a1",
+        "title": "隔离 db-prod-01 的对外连接",
+        "mode": "hybrid",
+        "stage": "containment",
+        "steps": [
+          {
+            "id": "a1-step-1",
+            "name": "封禁C2出口",
+            "mode": "serial",
+            "parallel_group": "contain",
+            "estimated_cost_minutes": 5
+          },
+          {
+            "id": "a1-step-2",
+            "name": "应用EDR隔离",
+            "mode": "parallel",
+            "parallel_group": "contain",
+            "estimated_cost_minutes": 8
+          }
+        ],
+        "rollback_hint": "撤销隔离策略并恢复网络连通性"
+      },
+      "tasks": [
+        {
+          "task_id": "task-a1-1",
+          "name": "封禁C2出口",
+          "execution_type": "hybrid",
+          "parallel_group": "contain",
+          "mode": "serial",
+          "stage": "containment",
+          "shell": "iptables -A OUTPUT -d 198.51.100.23 -j DROP",
+          "api": "POST /edr/isolate?asset=db-prod-01",
+          "estimated_cost_minutes": 5,
+          "target_assets": [
+            "db-prod-01"
+          ],
+          "requires_approval": false
+        },
+        {
+          "task_id": "task-a1-2",
+          "name": "应用EDR隔离",
+          "execution_type": "hybrid",
+          "parallel_group": "contain",
+          "mode": "parallel",
+          "stage": "containment",
+          "shell": "",
+          "api": "",
+          "estimated_cost_minutes": 8,
+          "target_assets": [
+            "db-prod-01"
+          ],
+          "requires_approval": false
+        }
+      ],
+      "summary": {
+        "action_name": "隔离 db-prod-01 的对外连接",
+        "stage": "containment",
+        "task_count": 2,
+        "has_shell": true,
+        "has_api": true,
+        "parallel_groups": [
+          "contain"
+        ],
+        "approval_count": 0
+      }
+    },
+    "orchestration": {
+      "graph_id": "orchestrate-a1",
+      "strategy": "serial_with_parallel_groups",
+      "nodes": [
+        {
+          "id": "task-a1-1",
+          "type": "parallel_task",
+          "name": "封禁C2出口",
+          "stage": "containment",
+          "execution_type": "hybrid",
+          "mode": "serial",
+          "parallel_group": "contain",
+          "requires_approval": false
+        },
+        {
+          "id": "task-a1-2",
+          "type": "parallel_task",
+          "name": "应用EDR隔离",
+          "stage": "containment",
+          "execution_type": "hybrid",
+          "mode": "parallel",
+          "parallel_group": "contain",
+          "requires_approval": false
+        }
+      ],
+      "edges": [],
+      "approval_nodes": [],
+      "rollback_plan": {
+        "strategy": "reverse_order_on_failure",
+        "tasks": [
+          {
+            "task_id": "rollback-task-a1-1",
+            "for_task": "task-a1-1",
+            "name": "回滚 封禁C2出口",
+            "instruction": "撤销隔离策略并恢复网络连通性"
+          },
+          {
+            "task_id": "rollback-task-a1-2",
+            "for_task": "task-a1-2",
+            "name": "回滚 应用EDR隔离",
+            "instruction": "撤销隔离策略并恢复网络连通性"
+          }
+        ]
+      },
+      "execution_order": [
+        "task-a1-1",
+        "task-a1-2"
+      ]
+    },
+    "case_memory": {
+      "stored": true,
+      "case_id": "case-2f882743b04c",
+      "effective_label": "malicious",
+      "storage_file": "/home/kali/SentriX/backend/data/case_memory/cases.jsonl",
+      "historical_panel": {
+        "has_false_positive_pattern": false,
+        "benign_like_count": 0,
+        "malicious_like_count": 0,
+        "cases": []
+      }
+    },
+    "observability": {
+      "cache_hit": {
+        "rag": false,
+        "layered_agents": false
+      },
+      "planner": {
+        "early_stop_count": 0,
+        "ranked_action_count": 3
+      },
+      "stage_elapsed_ms": {
+        "triage": 0,
+        "rag": 1766,
+        "planning": 47285,
+        "audit": 0
+      }
+    }
+  },
+  "case_memory": {
+    "stored": true,
+    "case_id": "case-2f882743b04c",
+    "effective_label": "malicious",
+    "storage_file": "/home/kali/SentriX/backend/data/case_memory/cases.jsonl"
+  },
+  "result": {
+    "incident": {
+      "event_summary": "IDS detects suspicious outbound traffic and privilege escalation on db-prod-01",
+      "ioc": {
+        "ip": [
+          "198.51.100.23"
+        ],
+        "domain": [
+          "malicious-updates.example"
+        ],
+        "cve": [
+          "CVE-2024-3400"
+        ],
+        "process": [
+          "rclone.exe"
+        ]
+      },
+      "affected_assets": [
+        "db-prod-01",
+        "web-prod-02"
+      ],
+      "raw_logs": [
+        "EDR alert: rclone.exe spawned by unknown parent process",
+        "Firewall detected repeated outbound connections to 198.51.100.23:443",
+        "Sysmon Event ID 10 indicates credential dumping pattern",
+        "IDS alert: anomaly score above threshold and suspicious DNS requests"
+      ],
+      "timestamp": "2026-04-12T08:30:00Z"
+    },
+    "state": {
+      "containment": 0.21000000000000002,
+      "assessment": 0.48,
+      "preservation": 0.05,
+      "eviction": 0.11,
+      "hardening": 0.23000000000000004,
+      "restoration": 0.05,
+      "explanation": "状态评估基于日志关键词匹配与IOC上下文。当前较高维度为: assessment=0.48, hardening=0.23。 当前短板维度为: preservation, restoration。已分析日志条数: 4。",
+      "recovery": 0.05
+    },
+    "rag": {
+      "summary": "RAG检索完成（SQLite数据库检索 + 本地补全 + 规则特征）",
+      "cve_findings": [
+        {
+          "cve": "CVE-2024-3400",
+          "severity": 10.0,
+          "description": "Palo Alto PAN-OS command injection",
+          "ttp": "Persistence",
+          "evidence_id": "EVID-0001",
+          "source_url": "https://nvd.nist.gov/vuln/detail/CVE-2024-3400",
+          "source_type": "sqlite_cve_db"
+        }
+      ],
+      "ioc_findings": [
+        {
+          "ioc": "198.51.100.23",
+          "threat": "C2 IP",
+          "confidence": 0.91,
+          "evidence_id": "EVID-0003",
+          "source_url": "https://example.local/ioc/198.51.100.23",
+          "source_type": "sqlite_ioc_db"
+        },
+        {
+          "ioc": "malicious-updates.example",
+          "threat": "Phishing domain",
+          "confidence": 0.87,
+          "evidence_id": "EVID-0004",
+          "source_url": "https://example.local/ioc/malicious-updates.example",
+          "source_type": "sqlite_ioc_db"
+        },
+        {
+          "ioc": "rclone.exe",
+          "threat": "Potential exfiltration tooling",
+          "confidence": 0.73,
+          "evidence_id": "EVID-0005",
+          "source_url": "https://example.local/ioc/rclone.exe",
+          "source_type": "sqlite_ioc_db"
+        }
+      ],
+      "asset_findings": [
+        {
+          "asset": "db-prod-01",
+          "criticality": "high",
+          "owner": "data-platform",
+          "evidence_id": "EVID-0002",
+          "source_url": "https://example.local/asset/db-prod-01",
+          "source_type": "sqlite_asset_db"
+        },
+        {
+          "asset": "web-prod-02",
+          "criticality": "medium",
+          "owner": "web-team",
+          "evidence_id": "EVID-0006",
+          "source_url": "https://example.local/asset/web-prod-02",
+          "source_type": "sqlite_asset_db"
+        }
+      ],
+      "rule_findings": [
+        {
+          "rule_id": "RULE-SIGMA-001",
+          "rule_type": "sigma",
+          "pattern": "powershell -enc",
+          "ttp": "attack.t1059.001",
+          "severity": 0.86,
+          "confidence": 0.8,
+          "source": "builtin_sigma",
+          "version": "v1",
+          "evidence_id": "EVID-0007",
+          "source_url": "https://attack.mitre.org/techniques/T1059/001/",
+          "source_type": "sqlite_rule_db"
+        },
+        {
+          "rule_id": "RULE-CVE-CVE_2019_5129",
+          "rule_type": "behavior",
+          "pattern": "CVE-2019-5129 | command | injection | have | been",
+          "ttp": "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')",
+          "severity": 1.0,
+          "confidence": 0.9,
+          "source": "cve_auto_generated",
+          "version": "v1",
+          "evidence_id": "EVID-0008",
+          "source_url": "https://talosintelligence.com/vulnerability_reports/TALOS-2019-0917",
+          "source_type": "sqlite_rule_db"
+        }
+      ],
+      "compressed_context": "CVE关键项: [{'cve': 'CVE-2024-3400', 'severity': 10.0, 'description': 'Palo Alto PAN-OS command injection', 'ttp': 'Persistence', 'evidence_id': 'EVID-0001', 'source_url': 'https://nvd.nist.gov/vuln/detail/CVE-2024-3400', 'source_type': 'sqlite_cve_db'}]. IOC关键项: [{'ioc': '198.51.100.23', 'threat': 'C2 IP', 'confidence': 0.91, 'evidence_id': 'EVID-0003', 'source_url': 'https://example.local/ioc/198.51.100.23', 'source_type': 'sqlite_ioc_db'}, {'ioc': 'malicious-updates.example', 'threat': 'Phishing domain', 'confidence': 0.87, 'evidence_id': 'EVID-0004', 'source_url': 'https://example.local/ioc/malicious-updates.example', 'source_type': 'sqlite_ioc_db'}, {'ioc': 'rclone.exe', 'threat': 'Potential exfiltration tooling', 'confidence': 0.73, 'evidence_id': 'EVID-0005', 'source_url': 'https://example.local/ioc/rclone.exe', 'source_type': 'sqlite_ioc_db'}]. 资产关键项: [{'asset': 'db-prod-01', 'criticality': 'high', 'owner': 'data-platform', 'evidence_id': 'EVID-0002', 'source_url': 'https://example.local/asset/db-prod-01', 'source_type': 'sqlite_asset_db'}, {'asset': 'web-prod-02', 'criticality': 'medium', 'owner': 'web-team', 'evidence_id': 'EVID-0006', 'source_url': 'https://example.local/asset/web-prod-02', 'source_type': 'sqlite_asset_db'}]. 规则关键项: [{'rule_id': 'RULE-CVE-CVE_2019_5129', 'rule_type': 'behavior', 'pattern': 'CVE-2019-5129 | command | injection | have | been', 'ttp': \"CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')\", 'severity': 1.0, 'confidence': 0.9, 'source': 'cve_auto_generated', 'version': 'v1', 'evidence_id': 'EVID-0008', 'source_url': 'https://talosintelligence.com/vulnerability_reports/TALOS-2019-0917', 'source_type': 'sqlite_rule_db'}, {'rule_id': 'RULE-SIGMA-001', 'rule_type': 'sigma', 'pattern': 'powershell -enc', 'ttp': 'attack.t1059.001', 'severity': 0.86, 'confidence': 0.8, 'source': 'builtin_sigma', 'version': 'v1', 'evidence_id': 'EVID-0007', 'source_url': 'https://attack.mitre.org/techniques/T1059/001/', 'source_type': 'sqlite_rule_db'}]. 联网情报: []. 证据映射: [{'evidence_id': 'EVID-0001', 'url': 'https://nvd.nist.gov/vuln/detail/CVE-2024-3400'}, {'evidence_id': 'EVID-0003', 'url': 'https://example.local/ioc/198.51.100.23'}, {'evidence_id': 'EVID-0004', 'url': 'https://example.local/ioc/malicious-updates.example'}, {'evidence_id': 'EVID-0005', 'url': 'https://example.local/ioc/rclone.exe'}, {'evidence_id': 'EVID-0002', 'url': 'https://example.local/asset/db-prod-01'}, {'evidence_id': 'EVID-0006', 'url': 'https://example.local/asset/web-prod-02'}, {'evidence_id': 'EVID-0008', 'url': 'https://talosintelligence.com/vulnerability_reports/TALOS-2019-0917'}, {'evidence_id': 'EVID-0007', 'url': 'https://attack.mitre.org/techniques/T1059/001/'}].",
+      "rag_context": {
+        "threat_summary": "CVE=1; IOC=3; RULE=2; SIMILAR_CASES=5",
+        "matched_iocs": [
+          {
+            "ioc": "198.51.100.23",
+            "threat": "C2 IP",
+            "confidence": 0.91,
+            "evidence_id": "EVID-0003",
+            "source_url": "https://example.local/ioc/198.51.100.23",
+            "source_type": "sqlite_ioc_db"
+          },
+          {
+            "ioc": "malicious-updates.example",
+            "threat": "Phishing domain",
+            "confidence": 0.87,
+            "evidence_id": "EVID-0004",
+            "source_url": "https://example.local/ioc/malicious-updates.example",
+            "source_type": "sqlite_ioc_db"
+          },
+          {
+            "ioc": "rclone.exe",
+            "threat": "Potential exfiltration tooling",
+            "confidence": 0.73,
+            "evidence_id": "EVID-0005",
+            "source_url": "https://example.local/ioc/rclone.exe",
+            "source_type": "sqlite_ioc_db"
+          }
+        ],
+        "matched_rules": [
+          {
+            "rule_id": "RULE-SIGMA-001",
+            "rule_type": "sigma",
+            "pattern": "powershell -enc",
+            "ttp": "attack.t1059.001",
+            "severity": 0.86,
+            "confidence": 0.8,
+            "source": "builtin_sigma",
+            "version": "v1",
+            "evidence_id": "EVID-0007",
+            "source_url": "https://attack.mitre.org/techniques/T1059/001/",
+            "source_type": "sqlite_rule_db"
+          },
+          {
+            "rule_id": "RULE-CVE-CVE_2019_5129",
+            "rule_type": "behavior",
+            "pattern": "CVE-2019-5129 | command | injection | have | been",
+            "ttp": "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')",
+            "severity": 1.0,
+            "confidence": 0.9,
+            "source": "cve_auto_generated",
+            "version": "v1",
+            "evidence_id": "EVID-0008",
+            "source_url": "https://talosintelligence.com/vulnerability_reports/TALOS-2019-0917",
+            "source_type": "sqlite_rule_db"
+          }
+        ],
+        "matched_cves": [
+          {
+            "cve": "CVE-2024-3400",
+            "severity": 10.0,
+            "description": "Palo Alto PAN-OS command injection",
+            "ttp": "Persistence",
+            "evidence_id": "EVID-0001",
+            "source_url": "https://nvd.nist.gov/vuln/detail/CVE-2024-3400",
+            "source_type": "sqlite_cve_db"
+          }
+        ],
+        "similar_cases": [
+          {
+            "case_id": "incident_examples.json:155",
+            "score": 18,
+            "instruction_preview": "Below is a system description, a sequence of network logs (e.g., from an intrusion detection system), and an instruction that describes a task.\nWrite a response that appropriately completes the request.\nBefore generating the response, think",
+            "answer_preview": "I note in the logs that although there is a Snort alert [1:1000001:1] indicating a 'Suspicious HTTP Request Pattern' from the external IP 203.0.113.45 targeting web01.dmz.example.com, this IP is ident"
+          },
+          {
+            "case_id": "incident_examples.json:87",
+            "score": 17,
+            "instruction_preview": "Below is a system description, a sequence of network logs (e.g., from an intrusion detection system), and an instruction that describes a task.\nWrite a response that appropriately completes the request.\nBefore generating the response, think",
+            "answer_preview": "I note that in the logs, all alerts originate from the single external IP address 192.0.2.55 targeting multiple critical services within the HPC cluster, such as OpenMPI on compute01 (198.51.100.10:55"
+          },
+          {
+            "case_id": "incident_examples.json:9",
+            "score": 16,
+            "instruction_preview": "Below is a system description, a sequence of network logs (e.g., from an intrusion detection system), and an instruction that describes a task.\nWrite a response that appropriately completes the request.\nBefore generating the response, think",
+            "answer_preview": "I note that the SSL connection attempt from 10.128.0.30 to an external IP on port 443 is flagged due to the use of a self-signed or untrusted certificate; however, according to the system description,"
+          },
+          {
+            "case_id": "incident_examples.json:55",
+            "score": 16,
+            "instruction_preview": "Below is a system description, a sequence of network logs (e.g., from an intrusion detection system), and an instruction that describes a task.\nWrite a response that appropriately completes the request.\nBefore generating the response, think",
+            "answer_preview": "I note that in the logs, several entries correspond to routine network and application behavior rather than clear indications of compromise. For example, the 'ICMP Ping detected' alert is classified a"
+          },
+          {
+            "case_id": "incident_examples.json:90",
+            "score": 16,
+            "instruction_preview": "Below is a system description, a sequence of network logs (e.g., from an intrusion detection system), and an instruction that describes a task.\nWrite a response that appropriately completes the request.\nBefore generating the response, think",
+            "answer_preview": "I note in the logs multiple Snort alerts [1:2024215:2] for 'ET POLICY Outbound SMBv1 Traffic Detected' originating from fileshare-01.example.com (10.10.20.25) to various internal IP addresses across d"
+          }
+        ],
+        "historical_case_feedback": {
+          "similar_cases": [],
+          "benign_like_count": 0,
+          "malicious_like_count": 0,
+          "has_false_positive_pattern": false
+        },
+        "recommended_mitigations": [
+          "Restrict script interpreter execution and enforce command-line auditing.",
+          "Patch or mitigate CVE-2024-3400 on affected assets."
+        ],
+        "asset_constraints": [
+          {
+            "asset": "db-prod-01",
+            "criticality": "high",
+            "owner": "data-platform",
+            "constraint": "high_criticality_requires_change_window"
+          },
+          {
+            "asset": "web-prod-02",
+            "criticality": "medium",
+            "owner": "web-team",
+            "constraint": "standard_change"
+          }
+        ],
+        "downgrade_reasons": [],
+        "downgrade_reason_details": [],
+        "cache_hit": false
+      }
+    },
+    "response": {
+      "best_action": {
+        "action_id": "a1",
+        "action_name": "隔离 db-prod-01 的对外连接",
+        "description": "阻断可疑外联，优先遏制攻击扩散。",
+        "target_stage": "containment",
+        "estimated_cost": 8.0,
+        "risk_penalty": 0.25,
+        "confidence": 0.84,
+        "reasoning": "IOC显示存在C2外联，优先执行网络遏制。",
+        "command": "iptables -A OUTPUT -d 198.51.100.23 -j DROP",
+        "api_call": "POST /edr/isolate?asset=db-prod-01",
+        "effects": {
+          "containment": 0.35,
+          "assessment": 0.1,
+          "preservation": 0.0,
+          "eviction": 0.0,
+          "hardening": 0.0,
+          "restoration": 0.0
+        },
+        "target_assets": [
+          "db-prod-01"
+        ],
+        "capability_tags": [
+          "network_isolation"
+        ],
+        "sub_steps": [
+          {
+            "name": "封禁C2出口",
+            "cost_minutes": 5,
+            "mode": "serial"
+          },
+          {
+            "name": "应用EDR隔离",
+            "cost_minutes": 8,
+            "mode": "parallel",
+            "group": "contain"
+          }
+        ],
+        "parallel_group": "contain",
+        "id": "a1",
+        "name": "隔离 db-prod-01 的对外连接",
+        "stage": "containment",
+        "risk": 0.25,
+        "cost_minutes": 8.0,
+        "reason": "IOC显示存在C2外联，优先执行网络遏制。"
+      },
+      "recommended_action": {
+        "action_id": "a1",
+        "action_name": "隔离 db-prod-01 的对外连接",
+        "description": "阻断可疑外联，优先遏制攻击扩散。",
+        "target_stage": "containment",
+        "estimated_cost": 8.0,
+        "risk_penalty": 0.25,
+        "confidence": 0.84,
+        "reasoning": "IOC显示存在C2外联，优先执行网络遏制。",
+        "command": "iptables -A OUTPUT -d 198.51.100.23 -j DROP",
+        "api_call": "POST /edr/isolate?asset=db-prod-01",
+        "effects": {
+          "containment": 0.35,
+          "assessment": 0.1,
+          "preservation": 0.0,
+          "eviction": 0.0,
+          "hardening": 0.0,
+          "restoration": 0.0
+        },
+        "target_assets": [
+          "db-prod-01"
+        ],
+        "capability_tags": [
+          "network_isolation"
+        ],
+        "sub_steps": [
+          {
+            "name": "封禁C2出口",
+            "cost_minutes": 5,
+            "mode": "serial"
+          },
+          {
+            "name": "应用EDR隔离",
+            "cost_minutes": 8,
+            "mode": "parallel",
+            "group": "contain"
+          }
+        ],
+        "parallel_group": "contain",
+        "id": "a1",
+        "name": "隔离 db-prod-01 的对外连接",
+        "stage": "containment",
+        "risk": 0.25,
+        "cost_minutes": 8.0,
+        "reason": "IOC显示存在C2外联，优先执行网络遏制。"
+      },
+      "ranked_actions": [
+        {
+          "action": {
+            "action_id": "a1",
+            "action_name": "隔离 db-prod-01 的对外连接",
+            "description": "阻断可疑外联，优先遏制攻击扩散。",
+            "target_stage": "containment",
+            "estimated_cost": 8.0,
+            "risk_penalty": 0.25,
+            "confidence": 0.84,
+            "reasoning": "IOC显示存在C2外联，优先执行网络遏制。",
+            "command": "iptables -A OUTPUT -d 198.51.100.23 -j DROP",
+            "api_call": "POST /edr/isolate?asset=db-prod-01",
+            "effects": {
+              "containment": 0.35,
+              "assessment": 0.1,
+              "preservation": 0.0,
+              "eviction": 0.0,
+              "hardening": 0.0,
+              "restoration": 0.0
+            },
+            "target_assets": [
+              "db-prod-01"
+            ],
+            "capability_tags": [
+              "network_isolation"
+            ],
+            "sub_steps": [
+              {
+                "name": "封禁C2出口",
+                "cost_minutes": 5,
+                "mode": "serial"
+              },
+              {
+                "name": "应用EDR隔离",
+                "cost_minutes": 8,
+                "mode": "parallel",
+                "group": "contain"
+              }
+            ],
+            "parallel_group": "contain",
+            "id": "a1",
+            "name": "隔离 db-prod-01 的对外连接",
+            "stage": "containment",
+            "risk": 0.25,
+            "cost_minutes": 8.0,
+            "reason": "IOC显示存在C2外联，优先执行网络遏制。"
+          },
+          "score": -14.306666666666672,
+          "projected_state": {
+            "containment": 0.6267,
+            "assessment": 0.7133,
+            "preservation": 0.35,
+            "eviction": 0.3767,
+            "hardening": 0.23,
+            "restoration": 0.35
+          },
+          "cumulative_cost": 38.333333333333336,
+          "progress_gain": 0.25276666666666664,
+          "projected_recovery_time": 38.333333333333336,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a1",
+            "a2",
+            "a3"
+          ],
+          "reason": "score=-14.307; progress_gain=0.253; cumulative_cost=38.33; risk_penalty=0.25.",
+          "validation_passed": true,
+          "rollout_results": [
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.68,
+                "preservation": 0.5,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.05
+              },
+              "cumulative_cost": 39.0,
+              "progress_gain": 0.25,
+              "projected_recovery_time": 39.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a2",
+                "a3"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.68,
+                "preservation": 0.05,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 31.0,
+              "progress_gain": 0.25,
+              "projected_recovery_time": 31.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a3",
+                "a5"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.56,
+                "assessment": 0.78,
+                "preservation": 0.5,
+                "eviction": 0.11,
+                "hardening": 0.23,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a5",
+                "a2"
+              ]
+            }
+          ],
+          "execution_meta": {
+            "rollouts_executed": 3,
+            "rollouts_planned": 3,
+            "early_stopped": false,
+            "early_stop_reason": ""
+          }
+        },
+        {
+          "action": {
+            "action_id": "a5",
+            "action_name": "恢复 db-prod-01 关键服务并验证",
+            "description": "恢复业务服务并执行验证，推进恢复完成。",
+            "target_stage": "restoration",
+            "estimated_cost": 12.0,
+            "risk_penalty": 0.3,
+            "confidence": 0.72,
+            "reasoning": "在遏制与清除后执行业务恢复与验证。",
+            "command": "systemctl restart critical-service && systemctl status critical-service",
+            "api_call": "POST /ops/recover?asset=db-prod-01",
+            "effects": {
+              "containment": 0.0,
+              "assessment": 0.1,
+              "preservation": 0.0,
+              "eviction": 0.0,
+              "hardening": 0.0,
+              "restoration": 0.45
+            },
+            "target_assets": [
+              "db-prod-01"
+            ],
+            "capability_tags": [
+              "service_recovery"
+            ],
+            "sub_steps": [
+              {
+                "name": "服务重启",
+                "cost_minutes": 8,
+                "mode": "serial"
+              },
+              {
+                "name": "健康检查",
+                "cost_minutes": 4,
+                "mode": "serial"
+              }
+            ],
+            "parallel_group": "recovery",
+            "id": "a5",
+            "name": "恢复 db-prod-01 关键服务并验证",
+            "stage": "restoration",
+            "risk": 0.3,
+            "cost_minutes": 12.0,
+            "reason": "在遏制与清除后执行业务恢复与验证。"
+          },
+          "score": -18.943333333333335,
+          "projected_state": {
+            "containment": 0.6267,
+            "assessment": 0.68,
+            "preservation": 0.05,
+            "eviction": 0.3767,
+            "hardening": 0.3967,
+            "restoration": 0.5333
+          },
+          "cumulative_cost": 43.0,
+          "progress_gain": 0.25556666666666666,
+          "projected_recovery_time": 43.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a5",
+            "a1",
+            "a3"
+          ],
+          "reason": "score=-18.943; progress_gain=0.256; cumulative_cost=43.00; risk_penalty=0.30.",
+          "validation_passed": true,
+          "rollout_results": [
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.68,
+                "preservation": 0.05,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 31.0,
+              "progress_gain": 0.25,
+              "projected_recovery_time": 31.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a1",
+                "a3"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.68,
+                "preservation": 0.05,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 31.0,
+              "progress_gain": 0.25,
+              "projected_recovery_time": 31.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a3",
+                "a1"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.56,
+                "assessment": 0.68,
+                "preservation": 0.05,
+                "eviction": 0.11,
+                "hardening": 0.73,
+                "restoration": 0.6
+              },
+              "cumulative_cost": 67.0,
+              "progress_gain": 0.2667,
+              "projected_recovery_time": 67.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a1",
+                "a4"
+              ]
+            }
+          ],
+          "execution_meta": {
+            "rollouts_executed": 3,
+            "rollouts_planned": 3,
+            "early_stopped": false,
+            "early_stop_reason": ""
+          }
+        },
+        {
+          "action": {
+            "action_id": "a2",
+            "action_name": "采集 db-prod-01 内存与磁盘镜像",
+            "description": "在清除前先进行证据保全，支持溯源和合规。",
+            "target_stage": "preservation",
+            "estimated_cost": 20.0,
+            "risk_penalty": 0.15,
+            "confidence": 0.79,
+            "reasoning": "当前取证保全维度较低，优先补齐证据链。",
+            "command": "velociraptor collect --target db-prod-01 --profile memory,disk",
+            "api_call": "POST /forensics/acquire?asset=db-prod-01",
+            "effects": {
+              "containment": 0.0,
+              "assessment": 0.1,
+              "preservation": 0.45,
+              "eviction": 0.0,
+              "hardening": 0.0,
+              "restoration": 0.0
+            },
+            "target_assets": [
+              "db-prod-01"
+            ],
+            "capability_tags": [
+              "forensics_collection"
+            ],
+            "sub_steps": [
+              {
+                "name": "内存采集",
+                "cost_minutes": 18,
+                "mode": "parallel",
+                "group": "forensics"
+              },
+              {
+                "name": "磁盘采集",
+                "cost_minutes": 20,
+                "mode": "parallel",
+                "group": "forensics"
+              }
+            ],
+            "parallel_group": "forensics",
+            "id": "a2",
+            "name": "采集 db-prod-01 内存与磁盘镜像",
+            "stage": "preservation",
+            "risk": 0.15,
+            "cost_minutes": 20.0,
+            "reason": "当前取证保全维度较低，优先补齐证据链。"
+          },
+          "score": -31.526666666666667,
+          "projected_state": {
+            "containment": 0.31,
+            "assessment": 0.6133,
+            "preservation": 0.5,
+            "eviction": 0.51,
+            "hardening": 0.5633,
+            "restoration": 0.2667
+          },
+          "cumulative_cost": 58.0,
+          "progress_gain": 0.2722333333333333,
+          "projected_recovery_time": 58.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a2",
+            "a3",
+            "a4"
+          ],
+          "reason": "score=-31.527; progress_gain=0.272; cumulative_cost=58.00; risk_penalty=0.15.",
+          "validation_passed": true,
+          "rollout_results": [
+            {
+              "projected_state": {
+                "containment": 0.31,
+                "assessment": 0.58,
+                "preservation": 0.5,
+                "eviction": 0.51,
+                "hardening": 0.73,
+                "restoration": 0.15
+              },
+              "cumulative_cost": 68.0,
+              "progress_gain": 0.275,
+              "projected_recovery_time": 68.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a3",
+                "a4"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.31,
+                "assessment": 0.58,
+                "preservation": 0.5,
+                "eviction": 0.51,
+                "hardening": 0.73,
+                "restoration": 0.15
+              },
+              "cumulative_cost": 68.0,
+              "progress_gain": 0.275,
+              "projected_recovery_time": 68.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a3",
+                "a4"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.31,
+                "assessment": 0.68,
+                "preservation": 0.5,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 38.0,
+              "progress_gain": 0.2667,
+              "projected_recovery_time": 38.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a3",
+                "a5"
+              ]
+            }
+          ],
+          "execution_meta": {
+            "rollouts_executed": 3,
+            "rollouts_planned": 3,
+            "early_stopped": false,
+            "early_stop_reason": ""
+          }
+        }
+      ],
+      "reasons": {
+        "隔离 db-prod-01 的对外连接": "Rank 1: score=-14.307, progress_gain=0.253, cost=38.3m, hallucination=False, validated=True.",
+        "恢复 db-prod-01 关键服务并验证": "Rank 2: score=-18.943, progress_gain=0.256, cost=43.0m, hallucination=False, validated=True.",
+        "采集 db-prod-01 内存与磁盘镜像": "Rank 3: score=-31.527, progress_gain=0.272, cost=58.0m, hallucination=False, validated=True."
+      },
+      "expected_recovery_effect": {
+        "current_state_progress": 0.188,
+        "projected_gain_best_action": 0.253,
+        "projected_recovery_time_minutes": 38.33,
+        "projected_state_best_action": {
+          "containment": 0.6267,
+          "assessment": 0.7133,
+          "preservation": 0.35,
+          "eviction": 0.3767,
+          "hardening": 0.23,
+          "restoration": 0.35
+        }
+      },
+      "risk_alerts": [
+        "恢复 db-prod-01 关键服务并验证: 风险=0.30"
+      ],
+      "executable": {
+        "mode": "hybrid",
+        "shell": "iptables -A OUTPUT -d 198.51.100.23 -j DROP",
+        "api": "POST /edr/isolate?asset=db-prod-01",
+        "playbook": {
+          "playbook_id": "playbook-a1",
+          "title": "隔离 db-prod-01 的对外连接",
+          "mode": "hybrid",
+          "stage": "containment",
+          "steps": [
+            {
+              "id": "a1-step-1",
+              "name": "封禁C2出口",
+              "mode": "serial",
+              "parallel_group": "contain",
+              "estimated_cost_minutes": 5
+            },
+            {
+              "id": "a1-step-2",
+              "name": "应用EDR隔离",
+              "mode": "parallel",
+              "parallel_group": "contain",
+              "estimated_cost_minutes": 8
+            }
+          ],
+          "rollback_hint": "撤销隔离策略并恢复网络连通性"
+        },
+        "tasks": [
+          {
+            "task_id": "task-a1-1",
+            "name": "封禁C2出口",
+            "execution_type": "hybrid",
+            "parallel_group": "contain",
+            "mode": "serial",
+            "stage": "containment",
+            "shell": "iptables -A OUTPUT -d 198.51.100.23 -j DROP",
+            "api": "POST /edr/isolate?asset=db-prod-01",
+            "estimated_cost_minutes": 5,
+            "target_assets": [
+              "db-prod-01"
+            ],
+            "requires_approval": false
+          },
+          {
+            "task_id": "task-a1-2",
+            "name": "应用EDR隔离",
+            "execution_type": "hybrid",
+            "parallel_group": "contain",
+            "mode": "parallel",
+            "stage": "containment",
+            "shell": "",
+            "api": "",
+            "estimated_cost_minutes": 8,
+            "target_assets": [
+              "db-prod-01"
+            ],
+            "requires_approval": false
+          }
+        ],
+        "orchestration": {
+          "graph_id": "orchestrate-a1",
+          "strategy": "serial_with_parallel_groups",
+          "nodes": [
+            {
+              "id": "task-a1-1",
+              "type": "parallel_task",
+              "name": "封禁C2出口",
+              "stage": "containment",
+              "execution_type": "hybrid",
+              "mode": "serial",
+              "parallel_group": "contain",
+              "requires_approval": false
+            },
+            {
+              "id": "task-a1-2",
+              "type": "parallel_task",
+              "name": "应用EDR隔离",
+              "stage": "containment",
+              "execution_type": "hybrid",
+              "mode": "parallel",
+              "parallel_group": "contain",
+              "requires_approval": false
+            }
+          ],
+          "edges": [],
+          "approval_nodes": [],
+          "rollback_plan": {
+            "strategy": "reverse_order_on_failure",
+            "tasks": [
+              {
+                "task_id": "rollback-task-a1-1",
+                "for_task": "task-a1-1",
+                "name": "回滚 封禁C2出口",
+                "instruction": "撤销隔离策略并恢复网络连通性"
+              },
+              {
+                "task_id": "rollback-task-a1-2",
+                "for_task": "task-a1-2",
+                "name": "回滚 应用EDR隔离",
+                "instruction": "撤销隔离策略并恢复网络连通性"
+              }
+            ]
+          },
+          "execution_order": [
+            "task-a1-1",
+            "task-a1-2"
+          ],
+          "guardrails": [
+            "仅在audit_result=pass且execution_allowed=true时允许下发",
+            "执行前确认目标资产列表与当前事件一致",
+            "Shell命令需在隔离或受控终端中执行",
+            "API调用需校验鉴权与变更窗口",
+            "优先针对资产 db-prod-01 执行"
+          ]
+        },
+        "guardrails": [
+          "仅在audit_result=pass且execution_allowed=true时允许下发",
+          "执行前确认目标资产列表与当前事件一致",
+          "Shell命令需在隔离或受控终端中执行",
+          "API调用需校验鉴权与变更窗口",
+          "优先针对资产 db-prod-01 执行"
+        ],
+        "target_assets": [
+          "db-prod-01"
+        ],
+        "capability_tags": [
+          "network_isolation"
+        ],
+        "summary": {
+          "action_name": "隔离 db-prod-01 的对外连接",
+          "stage": "containment",
+          "task_count": 2,
+          "has_shell": true,
+          "has_api": true,
+          "parallel_groups": [
+            "contain"
+          ],
+          "approval_count": 0
+        }
+      },
+      "explainability": {
+        "state_explanation": "状态评估基于日志关键词匹配与IOC上下文。当前较高维度为: assessment=0.48, hardening=0.23。 当前短板维度为: preservation, restoration。已分析日志条数: 4。",
+        "rag_compressed_context": "CVE关键项: [{'cve': 'CVE-2024-3400', 'severity': 10.0, 'description': 'Palo Alto PAN-OS command injection', 'ttp': 'Persistence', 'evidence_id': 'EVID-0001', 'source_url': 'https://nvd.nist.gov/vuln/detail/CVE-2024-3400', 'source_type': 'sqlite_cve_db'}]. IOC关键项: [{'ioc': '198.51.100.23', 'threat': 'C2 IP', 'confidence': 0.91, 'evidence_id': 'EVID-0003', 'source_url': 'https://example.local/ioc/198.51.100.23', 'source_type': 'sqlite_ioc_db'}, {'ioc': 'malicious-updates.example', 'threat': 'Phishing domain', 'confidence': 0.87, 'evidence_id': 'EVID-0004', 'source_url': 'https://example.local/ioc/malicious-updates.example', 'source_type': 'sqlite_ioc_db'}, {'ioc': 'rclone.exe', 'threat': 'Potential exfiltration tooling', 'confidence': 0.73, 'evidence_id': 'EVID-0005', 'source_url': 'https://example.local/ioc/rclone.exe', 'source_type': 'sqlite_ioc_db'}]. 资产关键项: [{'asset': 'db-prod-01', 'criticality': 'high', 'owner': 'data-platform', 'evidence_id': 'EVID-0002', 'source_url': 'https://example.local/asset/db-prod-01', 'source_type': 'sqlite_asset_db'}, {'asset': 'web-prod-02', 'criticality': 'medium', 'owner': 'web-team', 'evidence_id': 'EVID-0006', 'source_url': 'https://example.local/asset/web-prod-02', 'source_type': 'sqlite_asset_db'}]. 规则关键项: [{'rule_id': 'RULE-CVE-CVE_2019_5129', 'rule_type': 'behavior', 'pattern': 'CVE-2019-5129 | command | injection | have | been', 'ttp': \"CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')\", 'severity': 1.0, 'confidence': 0.9, 'source': 'cve_auto_generated', 'version': 'v1', 'evidence_id': 'EVID-0008', 'source_url': 'https://talosintelligence.com/vulnerability_reports/TALOS-2019-0917', 'source_type': 'sqlite_rule_db'}, {'rule_id': 'RULE-SIGMA-001', 'rule_type': 'sigma', 'pattern': 'powershell -enc', 'ttp': 'attack.t1059.001', 'severity': 0.86, 'confidence': 0.8, 'source': 'builtin_sigma', 'version': 'v1', 'evidence_id': 'EVID-0007', 'source_url': 'https://attack.mitre.org/techniques/T1059/001/', 'source_type': 'sqlite_rule_db'}]. 联网情报: []. 证据映射: [{'evidence_id': 'EVID-0001', 'url': 'https://nvd.nist.gov/vuln/detail/CVE-2024-3400'}, {'evidence_id': 'EVID-0003', 'url': 'https://example.local/ioc/198.51.100.23'}, {'evidence_id': 'EVID-0004', 'url': 'https://example.local/ioc/malicious-updates.example'}, {'evidence_id': 'EVID-0005', 'url': 'https://example.local/ioc/rclone.exe'}, {'evidence_id': 'EVID-0002', 'url': 'https://example.local/asset/db-prod-01'}, {'evidence_id': 'EVID-0006', 'url': 'https://example.local/asset/web-prod-02'}, {'evidence_id': 'EVID-0008', 'url': 'https://talosintelligence.com/vulnerability_reports/TALOS-2019-0917'}, {'evidence_id': 'EVID-0007', 'url': 'https://attack.mitre.org/techniques/T1059/001/'}].",
+        "decision_policy": "Score = progress_gain * 100 - cumulative_cost - risk_penalty * 5",
+        "incident_summary": "IDS detects suspicious outbound traffic and privilege escalation on db-prod-01",
+        "execution_mode": "hybrid",
+        "soar_task_count": 2
+      },
+      "planning_explanation": "State-driven rollout planning: ranked by progress_gain, cumulative_cost, risk_penalty and hallucination checks."
+    },
+    "audit": {
+      "audit_result": "pass",
+      "findings": [],
+      "candidate_actions": [
+        {
+          "action_id": "a1",
+          "action_name": "隔离 db-prod-01 的对外连接",
+          "description": "阻断可疑外联，优先遏制攻击扩散。",
+          "target_stage": "containment",
+          "estimated_cost": 8.0,
+          "risk_penalty": 0.25,
+          "confidence": 0.84,
+          "reasoning": "IOC显示存在C2外联，优先执行网络遏制。",
+          "command": "iptables -A OUTPUT -d 198.51.100.23 -j DROP",
+          "api_call": "POST /edr/isolate?asset=db-prod-01",
+          "effects": {
+            "containment": 0.35,
+            "assessment": 0.1,
+            "preservation": 0.0,
+            "eviction": 0.0,
+            "hardening": 0.0,
+            "restoration": 0.0
+          },
+          "target_assets": [
+            "db-prod-01"
+          ],
+          "capability_tags": [
+            "network_isolation"
+          ],
+          "sub_steps": [
+            {
+              "name": "封禁C2出口",
+              "cost_minutes": 5,
+              "mode": "serial"
+            },
+            {
+              "name": "应用EDR隔离",
+              "cost_minutes": 8,
+              "mode": "parallel",
+              "group": "contain"
+            }
+          ],
+          "parallel_group": "contain",
+          "id": "a1",
+          "name": "隔离 db-prod-01 的对外连接",
+          "stage": "containment",
+          "risk": 0.25,
+          "cost_minutes": 8.0,
+          "reason": "IOC显示存在C2外联，优先执行网络遏制。"
+        },
+        {
+          "action_id": "a5",
+          "action_name": "恢复 db-prod-01 关键服务并验证",
+          "description": "恢复业务服务并执行验证，推进恢复完成。",
+          "target_stage": "restoration",
+          "estimated_cost": 12.0,
+          "risk_penalty": 0.3,
+          "confidence": 0.72,
+          "reasoning": "在遏制与清除后执行业务恢复与验证。",
+          "command": "systemctl restart critical-service && systemctl status critical-service",
+          "api_call": "POST /ops/recover?asset=db-prod-01",
+          "effects": {
+            "containment": 0.0,
+            "assessment": 0.1,
+            "preservation": 0.0,
+            "eviction": 0.0,
+            "hardening": 0.0,
+            "restoration": 0.45
+          },
+          "target_assets": [
+            "db-prod-01"
+          ],
+          "capability_tags": [
+            "service_recovery"
+          ],
+          "sub_steps": [
+            {
+              "name": "服务重启",
+              "cost_minutes": 8,
+              "mode": "serial"
+            },
+            {
+              "name": "健康检查",
+              "cost_minutes": 4,
+              "mode": "serial"
+            }
+          ],
+          "parallel_group": "recovery",
+          "id": "a5",
+          "name": "恢复 db-prod-01 关键服务并验证",
+          "stage": "restoration",
+          "risk": 0.3,
+          "cost_minutes": 12.0,
+          "reason": "在遏制与清除后执行业务恢复与验证。"
+        },
+        {
+          "action_id": "a2",
+          "action_name": "采集 db-prod-01 内存与磁盘镜像",
+          "description": "在清除前先进行证据保全，支持溯源和合规。",
+          "target_stage": "preservation",
+          "estimated_cost": 20.0,
+          "risk_penalty": 0.15,
+          "confidence": 0.79,
+          "reasoning": "当前取证保全维度较低，优先补齐证据链。",
+          "command": "velociraptor collect --target db-prod-01 --profile memory,disk",
+          "api_call": "POST /forensics/acquire?asset=db-prod-01",
+          "effects": {
+            "containment": 0.0,
+            "assessment": 0.1,
+            "preservation": 0.45,
+            "eviction": 0.0,
+            "hardening": 0.0,
+            "restoration": 0.0
+          },
+          "target_assets": [
+            "db-prod-01"
+          ],
+          "capability_tags": [
+            "forensics_collection"
+          ],
+          "sub_steps": [
+            {
+              "name": "内存采集",
+              "cost_minutes": 18,
+              "mode": "parallel",
+              "group": "forensics"
+            },
+            {
+              "name": "磁盘采集",
+              "cost_minutes": 20,
+              "mode": "parallel",
+              "group": "forensics"
+            }
+          ],
+          "parallel_group": "forensics",
+          "id": "a2",
+          "name": "采集 db-prod-01 内存与磁盘镜像",
+          "stage": "preservation",
+          "risk": 0.15,
+          "cost_minutes": 20.0,
+          "reason": "当前取证保全维度较低，优先补齐证据链。"
+        }
+      ],
+      "state_predictions": [
+        {
+          "action_id": "a1",
+          "projected_state": {
+            "containment": 0.6267,
+            "assessment": 0.7133,
+            "preservation": 0.35,
+            "eviction": 0.3767,
+            "hardening": 0.23,
+            "restoration": 0.35
+          }
+        },
+        {
+          "action_id": "a5",
+          "projected_state": {
+            "containment": 0.6267,
+            "assessment": 0.68,
+            "preservation": 0.05,
+            "eviction": 0.3767,
+            "hardening": 0.3967,
+            "restoration": 0.5333
+          }
+        },
+        {
+          "action_id": "a2",
+          "projected_state": {
+            "containment": 0.31,
+            "assessment": 0.6133,
+            "preservation": 0.5,
+            "eviction": 0.51,
+            "hardening": 0.5633,
+            "restoration": 0.2667
+          }
+        }
+      ],
+      "rollout_results": [
+        {
+          "action_id": "a1",
+          "rollouts": [
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.68,
+                "preservation": 0.5,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.05
+              },
+              "cumulative_cost": 39.0,
+              "progress_gain": 0.25,
+              "projected_recovery_time": 39.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a2",
+                "a3"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.68,
+                "preservation": 0.05,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 31.0,
+              "progress_gain": 0.25,
+              "projected_recovery_time": 31.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a3",
+                "a5"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.56,
+                "assessment": 0.78,
+                "preservation": 0.5,
+                "eviction": 0.11,
+                "hardening": 0.23,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a5",
+                "a2"
+              ]
+            }
+          ]
+        },
+        {
+          "action_id": "a5",
+          "rollouts": [
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.68,
+                "preservation": 0.05,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 31.0,
+              "progress_gain": 0.25,
+              "projected_recovery_time": 31.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a1",
+                "a3"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.68,
+                "preservation": 0.05,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 31.0,
+              "progress_gain": 0.25,
+              "projected_recovery_time": 31.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a3",
+                "a1"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.56,
+                "assessment": 0.68,
+                "preservation": 0.05,
+                "eviction": 0.11,
+                "hardening": 0.73,
+                "restoration": 0.6
+              },
+              "cumulative_cost": 67.0,
+              "progress_gain": 0.2667,
+              "projected_recovery_time": 67.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a1",
+                "a4"
+              ]
+            }
+          ]
+        },
+        {
+          "action_id": "a2",
+          "rollouts": [
+            {
+              "projected_state": {
+                "containment": 0.31,
+                "assessment": 0.58,
+                "preservation": 0.5,
+                "eviction": 0.51,
+                "hardening": 0.73,
+                "restoration": 0.15
+              },
+              "cumulative_cost": 68.0,
+              "progress_gain": 0.275,
+              "projected_recovery_time": 68.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a3",
+                "a4"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.31,
+                "assessment": 0.58,
+                "preservation": 0.5,
+                "eviction": 0.51,
+                "hardening": 0.73,
+                "restoration": 0.15
+              },
+              "cumulative_cost": 68.0,
+              "progress_gain": 0.275,
+              "projected_recovery_time": 68.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a3",
+                "a4"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.31,
+                "assessment": 0.68,
+                "preservation": 0.5,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 38.0,
+              "progress_gain": 0.2667,
+              "projected_recovery_time": 38.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a3",
+                "a5"
+              ]
+            }
+          ]
+        }
+      ],
+      "scores": [
+        {
+          "action_id": "a1",
+          "score": -14.306666666666672,
+          "validation_passed": true
+        },
+        {
+          "action_id": "a5",
+          "score": -18.943333333333335,
+          "validation_passed": true
+        },
+        {
+          "action_id": "a2",
+          "score": -31.526666666666667,
+          "validation_passed": true
+        }
+      ],
+      "best_action_selection_reason": "score=-14.307; progress_gain=0.253; cumulative_cost=38.33; risk_penalty=0.25.",
+      "filtered_actions": [],
+      "execution_guardrails": [
+        "若 audit_result=fail，禁止自动执行",
+        "优先执行 validation_passed 且 hallucination_flag=false 的动作",
+        "高风险动作需人工审批"
+      ],
+      "final_note": "state_progress=0.188; incident_assets=2; rag_context_len=2754",
+      "planning_trace": [
+        {
+          "action": {
+            "action_id": "a1",
+            "action_name": "隔离 db-prod-01 的对外连接",
+            "description": "阻断可疑外联，优先遏制攻击扩散。",
+            "target_stage": "containment",
+            "estimated_cost": 8.0,
+            "risk_penalty": 0.25,
+            "confidence": 0.84,
+            "reasoning": "IOC显示存在C2外联，优先执行网络遏制。",
+            "command": "iptables -A OUTPUT -d 198.51.100.23 -j DROP",
+            "api_call": "POST /edr/isolate?asset=db-prod-01",
+            "effects": {
+              "containment": 0.35,
+              "assessment": 0.1,
+              "preservation": 0.0,
+              "eviction": 0.0,
+              "hardening": 0.0,
+              "restoration": 0.0
+            },
+            "target_assets": [
+              "db-prod-01"
+            ],
+            "capability_tags": [
+              "network_isolation"
+            ],
+            "sub_steps": [
+              {
+                "name": "封禁C2出口",
+                "cost_minutes": 5,
+                "mode": "serial"
+              },
+              {
+                "name": "应用EDR隔离",
+                "cost_minutes": 8,
+                "mode": "parallel",
+                "group": "contain"
+              }
+            ],
+            "parallel_group": "contain",
+            "id": "a1",
+            "name": "隔离 db-prod-01 的对外连接",
+            "stage": "containment",
+            "risk": 0.25,
+            "cost_minutes": 8.0,
+            "reason": "IOC显示存在C2外联，优先执行网络遏制。"
+          },
+          "projected_state": {
+            "containment": 0.6267,
+            "assessment": 0.7133,
+            "preservation": 0.35,
+            "eviction": 0.3767,
+            "hardening": 0.23,
+            "restoration": 0.35
+          },
+          "rollout_results": [
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.68,
+                "preservation": 0.5,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.05
+              },
+              "cumulative_cost": 39.0,
+              "progress_gain": 0.25,
+              "projected_recovery_time": 39.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a2",
+                "a3"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.68,
+                "preservation": 0.05,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 31.0,
+              "progress_gain": 0.25,
+              "projected_recovery_time": 31.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a3",
+                "a5"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.56,
+                "assessment": 0.78,
+                "preservation": 0.5,
+                "eviction": 0.11,
+                "hardening": 0.23,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a5",
+                "a2"
+              ]
+            }
+          ],
+          "score": -14.306666666666672,
+          "hallucination_flag": false,
+          "validation_passed": true,
+          "selection_reason": "score=-14.307; progress_gain=0.253; cumulative_cost=38.33; risk_penalty=0.25."
+        },
+        {
+          "action": {
+            "action_id": "a5",
+            "action_name": "恢复 db-prod-01 关键服务并验证",
+            "description": "恢复业务服务并执行验证，推进恢复完成。",
+            "target_stage": "restoration",
+            "estimated_cost": 12.0,
+            "risk_penalty": 0.3,
+            "confidence": 0.72,
+            "reasoning": "在遏制与清除后执行业务恢复与验证。",
+            "command": "systemctl restart critical-service && systemctl status critical-service",
+            "api_call": "POST /ops/recover?asset=db-prod-01",
+            "effects": {
+              "containment": 0.0,
+              "assessment": 0.1,
+              "preservation": 0.0,
+              "eviction": 0.0,
+              "hardening": 0.0,
+              "restoration": 0.45
+            },
+            "target_assets": [
+              "db-prod-01"
+            ],
+            "capability_tags": [
+              "service_recovery"
+            ],
+            "sub_steps": [
+              {
+                "name": "服务重启",
+                "cost_minutes": 8,
+                "mode": "serial"
+              },
+              {
+                "name": "健康检查",
+                "cost_minutes": 4,
+                "mode": "serial"
+              }
+            ],
+            "parallel_group": "recovery",
+            "id": "a5",
+            "name": "恢复 db-prod-01 关键服务并验证",
+            "stage": "restoration",
+            "risk": 0.3,
+            "cost_minutes": 12.0,
+            "reason": "在遏制与清除后执行业务恢复与验证。"
+          },
+          "projected_state": {
+            "containment": 0.6267,
+            "assessment": 0.68,
+            "preservation": 0.05,
+            "eviction": 0.3767,
+            "hardening": 0.3967,
+            "restoration": 0.5333
+          },
+          "rollout_results": [
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.68,
+                "preservation": 0.05,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 31.0,
+              "progress_gain": 0.25,
+              "projected_recovery_time": 31.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a1",
+                "a3"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.68,
+                "preservation": 0.05,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 31.0,
+              "progress_gain": 0.25,
+              "projected_recovery_time": 31.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a3",
+                "a1"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.56,
+                "assessment": 0.68,
+                "preservation": 0.05,
+                "eviction": 0.11,
+                "hardening": 0.73,
+                "restoration": 0.6
+              },
+              "cumulative_cost": 67.0,
+              "progress_gain": 0.2667,
+              "projected_recovery_time": 67.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a1",
+                "a4"
+              ]
+            }
+          ],
+          "score": -18.943333333333335,
+          "hallucination_flag": false,
+          "validation_passed": true,
+          "selection_reason": "score=-18.943; progress_gain=0.256; cumulative_cost=43.00; risk_penalty=0.30."
+        },
+        {
+          "action": {
+            "action_id": "a2",
+            "action_name": "采集 db-prod-01 内存与磁盘镜像",
+            "description": "在清除前先进行证据保全，支持溯源和合规。",
+            "target_stage": "preservation",
+            "estimated_cost": 20.0,
+            "risk_penalty": 0.15,
+            "confidence": 0.79,
+            "reasoning": "当前取证保全维度较低，优先补齐证据链。",
+            "command": "velociraptor collect --target db-prod-01 --profile memory,disk",
+            "api_call": "POST /forensics/acquire?asset=db-prod-01",
+            "effects": {
+              "containment": 0.0,
+              "assessment": 0.1,
+              "preservation": 0.45,
+              "eviction": 0.0,
+              "hardening": 0.0,
+              "restoration": 0.0
+            },
+            "target_assets": [
+              "db-prod-01"
+            ],
+            "capability_tags": [
+              "forensics_collection"
+            ],
+            "sub_steps": [
+              {
+                "name": "内存采集",
+                "cost_minutes": 18,
+                "mode": "parallel",
+                "group": "forensics"
+              },
+              {
+                "name": "磁盘采集",
+                "cost_minutes": 20,
+                "mode": "parallel",
+                "group": "forensics"
+              }
+            ],
+            "parallel_group": "forensics",
+            "id": "a2",
+            "name": "采集 db-prod-01 内存与磁盘镜像",
+            "stage": "preservation",
+            "risk": 0.15,
+            "cost_minutes": 20.0,
+            "reason": "当前取证保全维度较低，优先补齐证据链。"
+          },
+          "projected_state": {
+            "containment": 0.31,
+            "assessment": 0.6133,
+            "preservation": 0.5,
+            "eviction": 0.51,
+            "hardening": 0.5633,
+            "restoration": 0.2667
+          },
+          "rollout_results": [
+            {
+              "projected_state": {
+                "containment": 0.31,
+                "assessment": 0.58,
+                "preservation": 0.5,
+                "eviction": 0.51,
+                "hardening": 0.73,
+                "restoration": 0.15
+              },
+              "cumulative_cost": 68.0,
+              "progress_gain": 0.275,
+              "projected_recovery_time": 68.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a3",
+                "a4"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.31,
+                "assessment": 0.58,
+                "preservation": 0.5,
+                "eviction": 0.51,
+                "hardening": 0.73,
+                "restoration": 0.15
+              },
+              "cumulative_cost": 68.0,
+              "progress_gain": 0.275,
+              "projected_recovery_time": 68.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a3",
+                "a4"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.31,
+                "assessment": 0.68,
+                "preservation": 0.5,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 38.0,
+              "progress_gain": 0.2667,
+              "projected_recovery_time": 38.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a3",
+                "a5"
+              ]
+            }
+          ],
+          "score": -31.526666666666667,
+          "hallucination_flag": false,
+          "validation_passed": true,
+          "selection_reason": "score=-31.527; progress_gain=0.272; cumulative_cost=58.00; risk_penalty=0.15."
+        }
+      ]
+    },
+    "execution_allowed": true,
+    "model_runtime": {
+      "provider": "qwen",
+      "model_name": "qwen-plus",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+    },
+    "skill_runtime": {
+      "loaded_skills": [
+        "soc-decision-auditor",
+        "soc-incident-triage",
+        "soc-rag-intel-analyst",
+        "soc-response-planner"
+      ],
+      "execution_trace": [
+        {
+          "stage": "triage",
+          "skill": "soc-incident-triage",
+          "status": "executed",
+          "elapsed_ms": "0"
+        },
+        {
+          "stage": "rag",
+          "skill": "soc-rag-intel-analyst",
+          "status": "executed",
+          "elapsed_ms": "1766"
+        },
+        {
+          "stage": "triage",
+          "skill": "soc-incident-triage",
+          "status": "executed",
+          "elapsed_ms": "0"
+        },
+        {
+          "stage": "planning",
+          "skill": "soc-response-planner",
+          "status": "executed",
+          "elapsed_ms": "47285"
+        },
+        {
+          "stage": "audit",
+          "skill": "soc-decision-auditor",
+          "status": "executed",
+          "elapsed_ms": "0"
+        }
+      ]
+    },
+    "multi_agent": {
+      "enabled": false,
+      "converged": false,
+      "selected_action_id": "a1",
+      "rounds": [],
+      "reason": "state_driven_planning",
+      "elapsed_ms": 0
+    },
+    "agent_layers": {
+      "enabled": true,
+      "context_profile": {
+        "business_context": "default_soc_context",
+        "critical_assets": [
+          "db-prod-01",
+          "web-prod-02"
+        ],
+        "asset_count": 2,
+        "ioc_count": 4
+      },
+      "identified_threats": [
+        {
+          "type": "rule_match",
+          "threat": "RULE-SIGMA-001",
+          "rule_id": "RULE-SIGMA-001",
+          "ttp": "attack.t1059.001",
+          "severity": 0.86,
+          "confidence": 0.8,
+          "source": "rule_findings",
+          "asset_priority_boost": 0.1
+        },
+        {
+          "type": "rule_match",
+          "threat": "RULE-CVE-CVE_2019_5129",
+          "rule_id": "RULE-CVE-CVE_2019_5129",
+          "ttp": "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')",
+          "severity": 1.0,
+          "confidence": 0.9,
+          "source": "rule_findings",
+          "asset_priority_boost": 0.1
+        },
+        {
+          "type": "cve_risk",
+          "threat": "Palo Alto PAN-OS command injection",
+          "cve": "CVE-2024-3400",
+          "severity": 10.0,
+          "confidence": 0.0,
+          "source": "cve_findings",
+          "asset_priority_boost": 0.1
+        }
+      ],
+      "prioritized_threats": [
+        {
+          "type": "cve_risk",
+          "threat": "Palo Alto PAN-OS command injection",
+          "cve": "CVE-2024-3400",
+          "severity": 10.0,
+          "confidence": 0.0,
+          "source": "cve_findings",
+          "asset_priority_boost": 0.1,
+          "priority_score": 6.65
+        },
+        {
+          "type": "rule_match",
+          "threat": "RULE-CVE-CVE_2019_5129",
+          "rule_id": "RULE-CVE-CVE_2019_5129",
+          "ttp": "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')",
+          "severity": 1.0,
+          "confidence": 0.9,
+          "source": "rule_findings",
+          "asset_priority_boost": 0.1,
+          "priority_score": 1.115
+        },
+        {
+          "type": "rule_match",
+          "threat": "RULE-SIGMA-001",
+          "rule_id": "RULE-SIGMA-001",
+          "ttp": "attack.t1059.001",
+          "severity": 0.86,
+          "confidence": 0.8,
+          "source": "rule_findings",
+          "asset_priority_boost": 0.1,
+          "priority_score": 0.989
+        }
+      ],
+      "hunt_queries": [
+        {
+          "stage": "execution",
+          "threat": "Palo Alto PAN-OS command injection",
+          "query_type": "log_search",
+          "query": "(\"198.51.100.23\" OR \"malicious-updates.example\" OR \"CVE-2024-3400\" OR \"rclone.exe\") AND stage:execution",
+          "confidence": 0.99,
+          "ttp": "Unknown",
+          "query_terms": [
+            "198.51.100.23",
+            "malicious-updates.example",
+            "CVE-2024-3400",
+            "rclone.exe"
+          ],
+          "templates": {
+            "sql": "SELECT timestamp, src_ip, dst_ip, message, stage, asset FROM security_events WHERE (message ILIKE '%198.51.100.23%' OR message ILIKE '%malicious-updates.example%' OR message ILIKE '%CVE-2024-3400%' OR message ILIKE '%rclone.exe%') AND stage = 'execution' ORDER BY timestamp DESC LIMIT 100;",
+            "elasticsearch_dsl": {
+              "size": 100,
+              "sort": [
+                {
+                  "timestamp": {
+                    "order": "desc"
+                  }
+                }
+              ],
+              "_source": [
+                "timestamp",
+                "src_ip",
+                "dst_ip",
+                "message",
+                "stage",
+                "asset",
+                "ttp"
+              ],
+              "query": {
+                "bool": {
+                  "must": [
+                    {
+                      "term": {
+                        "stage.keyword": "execution"
+                      }
+                    }
+                  ],
+                  "should": [
+                    {
+                      "match_phrase": {
+                        "message": "198.51.100.23"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "ioc": "198.51.100.23"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "message": "malicious-updates.example"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "ioc": "malicious-updates.example"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "message": "CVE-2024-3400"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "ioc": "CVE-2024-3400"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "message": "rclone.exe"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "ioc": "rclone.exe"
+                      }
+                    }
+                  ],
+                  "minimum_should_match": 1,
+                  "filter": []
+                }
+              }
+            },
+            "splunk_spl": "search index=security_events (message=\"*198.51.100.23*\" OR message=\"*malicious-updates.example*\" OR message=\"*CVE-2024-3400*\" OR message=\"*rclone.exe*\") stage=\"execution\" | table _time src_ip dst_ip stage asset ttp message | sort - _time | head 100",
+            "metadata": {
+              "stage": "execution",
+              "ttp": "Unknown",
+              "threat": "Palo Alto PAN-OS command injection",
+              "term_count": 4
+            }
+          }
+        },
+        {
+          "stage": "execution",
+          "threat": "RULE-CVE-CVE_2019_5129",
+          "query_type": "log_search",
+          "query": "(\"198.51.100.23\" OR \"malicious-updates.example\" OR \"CVE-2024-3400\" OR \"rclone.exe\") AND stage:execution",
+          "confidence": 0.99,
+          "ttp": "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')",
+          "query_terms": [
+            "198.51.100.23",
+            "malicious-updates.example",
+            "CVE-2024-3400",
+            "rclone.exe"
+          ],
+          "templates": {
+            "sql": "SELECT timestamp, src_ip, dst_ip, message, stage, asset FROM security_events WHERE (message ILIKE '%198.51.100.23%' OR message ILIKE '%malicious-updates.example%' OR message ILIKE '%CVE-2024-3400%' OR message ILIKE '%rclone.exe%') AND stage = 'execution' ORDER BY timestamp DESC LIMIT 100;",
+            "elasticsearch_dsl": {
+              "size": 100,
+              "sort": [
+                {
+                  "timestamp": {
+                    "order": "desc"
+                  }
+                }
+              ],
+              "_source": [
+                "timestamp",
+                "src_ip",
+                "dst_ip",
+                "message",
+                "stage",
+                "asset",
+                "ttp"
+              ],
+              "query": {
+                "bool": {
+                  "must": [
+                    {
+                      "term": {
+                        "stage.keyword": "execution"
+                      }
+                    }
+                  ],
+                  "should": [
+                    {
+                      "match_phrase": {
+                        "message": "198.51.100.23"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "ioc": "198.51.100.23"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "message": "malicious-updates.example"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "ioc": "malicious-updates.example"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "message": "CVE-2024-3400"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "ioc": "CVE-2024-3400"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "message": "rclone.exe"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "ioc": "rclone.exe"
+                      }
+                    }
+                  ],
+                  "minimum_should_match": 1,
+                  "filter": [
+                    {
+                      "term": {
+                        "ttp.keyword": "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "splunk_spl": "search index=security_events (message=\"*198.51.100.23*\" OR message=\"*malicious-updates.example*\" OR message=\"*CVE-2024-3400*\" OR message=\"*rclone.exe*\") stage=\"execution\" ttp=\"CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')\" | table _time src_ip dst_ip stage asset ttp message | sort - _time | head 100",
+            "metadata": {
+              "stage": "execution",
+              "ttp": "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')",
+              "threat": "RULE-CVE-CVE_2019_5129",
+              "term_count": 4
+            }
+          }
+        },
+        {
+          "stage": "execution",
+          "threat": "RULE-SIGMA-001",
+          "query_type": "log_search",
+          "query": "(\"198.51.100.23\" OR \"malicious-updates.example\" OR \"CVE-2024-3400\" OR \"rclone.exe\") AND stage:execution",
+          "confidence": 0.989,
+          "ttp": "attack.t1059.001",
+          "query_terms": [
+            "198.51.100.23",
+            "malicious-updates.example",
+            "CVE-2024-3400",
+            "rclone.exe"
+          ],
+          "templates": {
+            "sql": "SELECT timestamp, src_ip, dst_ip, message, stage, asset FROM security_events WHERE (message ILIKE '%198.51.100.23%' OR message ILIKE '%malicious-updates.example%' OR message ILIKE '%CVE-2024-3400%' OR message ILIKE '%rclone.exe%') AND stage = 'execution' ORDER BY timestamp DESC LIMIT 100;",
+            "elasticsearch_dsl": {
+              "size": 100,
+              "sort": [
+                {
+                  "timestamp": {
+                    "order": "desc"
+                  }
+                }
+              ],
+              "_source": [
+                "timestamp",
+                "src_ip",
+                "dst_ip",
+                "message",
+                "stage",
+                "asset",
+                "ttp"
+              ],
+              "query": {
+                "bool": {
+                  "must": [
+                    {
+                      "term": {
+                        "stage.keyword": "execution"
+                      }
+                    }
+                  ],
+                  "should": [
+                    {
+                      "match_phrase": {
+                        "message": "198.51.100.23"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "ioc": "198.51.100.23"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "message": "malicious-updates.example"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "ioc": "malicious-updates.example"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "message": "CVE-2024-3400"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "ioc": "CVE-2024-3400"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "message": "rclone.exe"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "ioc": "rclone.exe"
+                      }
+                    }
+                  ],
+                  "minimum_should_match": 1,
+                  "filter": [
+                    {
+                      "term": {
+                        "ttp.keyword": "attack.t1059.001"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "splunk_spl": "search index=security_events (message=\"*198.51.100.23*\" OR message=\"*malicious-updates.example*\" OR message=\"*CVE-2024-3400*\" OR message=\"*rclone.exe*\") stage=\"execution\" ttp=\"attack.t1059.001\" | table _time src_ip dst_ip stage asset ttp message | sort - _time | head 100",
+            "metadata": {
+              "stage": "execution",
+              "ttp": "attack.t1059.001",
+              "threat": "RULE-SIGMA-001",
+              "term_count": 4
+            }
+          }
+        }
+      ],
+      "stage_runtime_ms": {
+        "identify": 0,
+        "analyze": 0,
+        "hunt": 0
+      },
+      "elapsed_ms": 0,
+      "cache_hit": false
+    },
+    "confidence_model": {
+      "detection_confidence": 1.0,
+      "response_confidence": 0.8069,
+      "execution_confidence": 0.8069,
+      "audit_factor": 1.0
+    },
+    "rule_generation": {
+      "enabled": true,
+      "reason": "ok",
+      "provider": "qwen",
+      "results": [
+        {
+          "cve_id": "CVE-2024-3400",
+          "candidate_count": 0,
+          "max_iterations": 5,
+          "candidates": [],
+          "best_rule": {},
+          "elapsed_ms": 26953
+        }
+      ],
+      "budget_ms": 5000,
+      "elapsed_ms": 26954
+    },
+    "input_meta": {
+      "source": "json",
+      "path": "/home/kali/SentriX/backend/data/sample_incident.json"
+    },
+    "evidence_trace_tree": {
+      "root": {
+        "event_summary": "IDS detects suspicious outbound traffic and privilege escalation on db-prod-01",
+        "top_threat": "Palo Alto PAN-OS command injection",
+        "detection_confidence": 1.0
+      },
+      "supporting_nodes": [
+        {
+          "type": "rule",
+          "label": "RULE-SIGMA-001",
+          "confidence": 0.8,
+          "severity": 0.86,
+          "evidence_id": "EVID-0007",
+          "support": "powershell -enc"
+        },
+        {
+          "type": "rule",
+          "label": "RULE-CVE-CVE_2019_5129",
+          "confidence": 0.9,
+          "severity": 1.0,
+          "evidence_id": "EVID-0008",
+          "support": "CVE-2019-5129 | command | injection | have | been"
+        },
+        {
+          "type": "cve",
+          "label": "CVE-2024-3400",
+          "confidence": 10.0,
+          "severity": 10.0,
+          "evidence_id": "EVID-0001",
+          "support": "Palo Alto PAN-OS command injection"
+        },
+        {
+          "type": "ioc",
+          "label": "198.51.100.23",
+          "confidence": 0.91,
+          "severity": 0.0,
+          "evidence_id": "EVID-0003",
+          "support": "C2 IP"
+        },
+        {
+          "type": "ioc",
+          "label": "malicious-updates.example",
+          "confidence": 0.87,
+          "severity": 0.0,
+          "evidence_id": "EVID-0004",
+          "support": "Phishing domain"
+        },
+        {
+          "type": "ioc",
+          "label": "rclone.exe",
+          "confidence": 0.73,
+          "severity": 0.0,
+          "evidence_id": "EVID-0005",
+          "support": "Potential exfiltration tooling"
+        }
+      ],
+      "log_nodes": [
+        {
+          "type": "raw_log",
+          "label": "log#1",
+          "support": "EDR alert: rclone.exe spawned by unknown parent process"
+        },
+        {
+          "type": "raw_log",
+          "label": "log#2",
+          "support": "Firewall detected repeated outbound connections to 198.51.100.23:443"
+        },
+        {
+          "type": "raw_log",
+          "label": "log#3",
+          "support": "Sysmon Event ID 10 indicates credential dumping pattern"
+        }
+      ],
+      "downgrade_reasons": []
+    },
+    "observability": {
+      "stage_elapsed_ms": {
+        "triage": 0,
+        "rag": 1766,
+        "planning": 47285,
+        "audit": 0
+      },
+      "cache_hit": {
+        "rag": false,
+        "layered_agents": false
+      },
+      "planner": {
+        "early_stop_count": 0,
+        "ranked_action_count": 3
+      }
+    },
+    "frontend_explainability": {
+      "schema_version": "v1",
+      "summary_cards": [
+        {
+          "key": "top_threat",
+          "label": "首要威胁",
+          "value": "Palo Alto PAN-OS command injection",
+          "tone": "danger"
+        },
+        {
+          "key": "recommended_action",
+          "label": "推荐动作",
+          "value": "隔离 db-prod-01 的对外连接",
+          "tone": "primary"
+        },
+        {
+          "key": "audit_result",
+          "label": "审计结果",
+          "value": "pass",
+          "tone": "info"
+        },
+        {
+          "key": "execution_allowed",
+          "label": "是否可执行",
+          "value": "是",
+          "tone": "success"
+        }
+      ],
+      "confidence_panel": {
+        "scores": {
+          "detection_confidence": 1.0,
+          "response_confidence": 0.8069,
+          "execution_confidence": 0.8069
+        },
+        "levels": {
+          "detection_confidence": "高",
+          "response_confidence": "中",
+          "execution_confidence": "中"
+        },
+        "breakdown": [
+          {
+            "key": "rule_confidence",
+            "label": "规则证据强度",
+            "value": 0.9,
+            "weight": "high"
+          },
+          {
+            "key": "cve_severity",
+            "label": "CVE严重度归一化",
+            "value": 1.0,
+            "weight": "medium"
+          },
+          {
+            "key": "ioc_confidence",
+            "label": "IOC置信度",
+            "value": 0.91,
+            "weight": "medium"
+          },
+          {
+            "key": "audit_factor",
+            "label": "审计系数",
+            "value": 1.0,
+            "weight": "high"
+          }
+        ]
+      },
+      "evidence_graph": {
+        "root_id": "event-root",
+        "nodes": [
+          {
+            "id": "event-root",
+            "type": "incident",
+            "label": "IDS detects suspicious outbound traffic and privilege escalation on db-prod-01",
+            "title": "事件根节点",
+            "subtitle": "Palo Alto PAN-OS command injection",
+            "severity": "high",
+            "meta": {
+              "detection_confidence": 1.0,
+              "asset_count": 2
+            }
+          },
+          {
+            "id": "support-1",
+            "type": "rule",
+            "label": "RULE-SIGMA-001",
+            "title": "powershell -enc",
+            "subtitle": "confidence=0.8",
+            "severity": "medium",
+            "meta": {
+              "evidence_id": "EVID-0007",
+              "severity": 0.86
+            }
+          },
+          {
+            "id": "support-2",
+            "type": "rule",
+            "label": "RULE-CVE-CVE_2019_5129",
+            "title": "CVE-2019-5129 | command | injection | have | been",
+            "subtitle": "confidence=0.9",
+            "severity": "high",
+            "meta": {
+              "evidence_id": "EVID-0008",
+              "severity": 1.0
+            }
+          },
+          {
+            "id": "support-3",
+            "type": "cve",
+            "label": "CVE-2024-3400",
+            "title": "Palo Alto PAN-OS command injection",
+            "subtitle": "confidence=10.0",
+            "severity": "high",
+            "meta": {
+              "evidence_id": "EVID-0001",
+              "severity": 10.0
+            }
+          },
+          {
+            "id": "support-4",
+            "type": "ioc",
+            "label": "198.51.100.23",
+            "title": "C2 IP",
+            "subtitle": "confidence=0.91",
+            "severity": "high",
+            "meta": {
+              "evidence_id": "EVID-0003",
+              "severity": 0.0
+            }
+          },
+          {
+            "id": "support-5",
+            "type": "ioc",
+            "label": "malicious-updates.example",
+            "title": "Phishing domain",
+            "subtitle": "confidence=0.87",
+            "severity": "high",
+            "meta": {
+              "evidence_id": "EVID-0004",
+              "severity": 0.0
+            }
+          },
+          {
+            "id": "support-6",
+            "type": "ioc",
+            "label": "rclone.exe",
+            "title": "Potential exfiltration tooling",
+            "subtitle": "confidence=0.73",
+            "severity": "medium",
+            "meta": {
+              "evidence_id": "EVID-0005",
+              "severity": 0.0
+            }
+          },
+          {
+            "id": "log-1",
+            "type": "log",
+            "label": "log#1",
+            "title": "EDR alert: rclone.exe spawned by unknown parent process",
+            "subtitle": "raw_log",
+            "severity": "low",
+            "meta": {}
+          },
+          {
+            "id": "log-2",
+            "type": "log",
+            "label": "log#2",
+            "title": "Firewall detected repeated outbound connections to 198.51.100.23:443",
+            "subtitle": "raw_log",
+            "severity": "low",
+            "meta": {}
+          },
+          {
+            "id": "log-3",
+            "type": "log",
+            "label": "log#3",
+            "title": "Sysmon Event ID 10 indicates credential dumping pattern",
+            "subtitle": "raw_log",
+            "severity": "low",
+            "meta": {}
+          }
+        ],
+        "edges": [
+          {
+            "from": "event-root",
+            "to": "support-1",
+            "relation": "supports"
+          },
+          {
+            "from": "event-root",
+            "to": "support-2",
+            "relation": "supports"
+          },
+          {
+            "from": "event-root",
+            "to": "support-3",
+            "relation": "supports"
+          },
+          {
+            "from": "event-root",
+            "to": "support-4",
+            "relation": "supports"
+          },
+          {
+            "from": "event-root",
+            "to": "support-5",
+            "relation": "supports"
+          },
+          {
+            "from": "event-root",
+            "to": "support-6",
+            "relation": "supports"
+          },
+          {
+            "from": "event-root",
+            "to": "log-1",
+            "relation": "observed_in"
+          },
+          {
+            "from": "event-root",
+            "to": "log-2",
+            "relation": "observed_in"
+          },
+          {
+            "from": "event-root",
+            "to": "log-3",
+            "relation": "observed_in"
+          }
+        ],
+        "legend": {
+          "incident": "事件",
+          "rule": "规则",
+          "cve": "漏洞",
+          "ioc": "IOC",
+          "log": "日志片段"
+        }
+      },
+      "downgrade_explanations": [],
+      "review_checklist": [
+        {
+          "key": "check_top_threat",
+          "label": "确认首要威胁是否符合人工研判",
+          "status": "todo"
+        },
+        {
+          "key": "check_action",
+          "label": "确认推荐动作与资产影响范围",
+          "status": "todo"
+        },
+        {
+          "key": "check_evidence",
+          "label": "复核关键证据节点与原始日志",
+          "status": "todo"
+        }
+      ],
+      "timeline": [
+        {
+          "id": "tl-1",
+          "stage": "detection",
+          "label": "威胁检测",
+          "value": "规则=2 / CVE=1"
+        },
+        {
+          "id": "tl-2",
+          "stage": "analysis",
+          "label": "威胁分析",
+          "value": "优先威胁=3"
+        },
+        {
+          "id": "tl-3",
+          "stage": "response",
+          "label": "响应规划",
+          "value": "隔离 db-prod-01 的对外连接"
+        },
+        {
+          "id": "tl-4",
+          "stage": "audit",
+          "label": "执行审计",
+          "value": "pass"
+        }
+      ],
+      "hunt_query_tabs": [
+        {
+          "id": "hunt-1",
+          "title": "Palo Alto PAN-OS command injection",
+          "stage": "execution",
+          "sql": "SELECT timestamp, src_ip, dst_ip, message, stage, asset FROM security_events WHERE (message ILIKE '%198.51.100.23%' OR message ILIKE '%malicious-updates.example%' OR message ILIKE '%CVE-2024-3400%' OR message ILIKE '%rclone.exe%') AND stage = 'execution' ORDER BY timestamp DESC LIMIT 100;",
+          "elasticsearch_dsl": {
+            "size": 100,
+            "sort": [
+              {
+                "timestamp": {
+                  "order": "desc"
+                }
+              }
+            ],
+            "_source": [
+              "timestamp",
+              "src_ip",
+              "dst_ip",
+              "message",
+              "stage",
+              "asset",
+              "ttp"
+            ],
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "stage.keyword": "execution"
+                    }
+                  }
+                ],
+                "should": [
+                  {
+                    "match_phrase": {
+                      "message": "198.51.100.23"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "198.51.100.23"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "malicious-updates.example"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "malicious-updates.example"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "CVE-2024-3400"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "CVE-2024-3400"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "rclone.exe"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "rclone.exe"
+                    }
+                  }
+                ],
+                "minimum_should_match": 1,
+                "filter": []
+              }
+            }
+          },
+          "splunk_spl": "search index=security_events (message=\"*198.51.100.23*\" OR message=\"*malicious-updates.example*\" OR message=\"*CVE-2024-3400*\" OR message=\"*rclone.exe*\") stage=\"execution\" | table _time src_ip dst_ip stage asset ttp message | sort - _time | head 100"
+        },
+        {
+          "id": "hunt-2",
+          "title": "RULE-CVE-CVE_2019_5129",
+          "stage": "execution",
+          "sql": "SELECT timestamp, src_ip, dst_ip, message, stage, asset FROM security_events WHERE (message ILIKE '%198.51.100.23%' OR message ILIKE '%malicious-updates.example%' OR message ILIKE '%CVE-2024-3400%' OR message ILIKE '%rclone.exe%') AND stage = 'execution' ORDER BY timestamp DESC LIMIT 100;",
+          "elasticsearch_dsl": {
+            "size": 100,
+            "sort": [
+              {
+                "timestamp": {
+                  "order": "desc"
+                }
+              }
+            ],
+            "_source": [
+              "timestamp",
+              "src_ip",
+              "dst_ip",
+              "message",
+              "stage",
+              "asset",
+              "ttp"
+            ],
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "stage.keyword": "execution"
+                    }
+                  }
+                ],
+                "should": [
+                  {
+                    "match_phrase": {
+                      "message": "198.51.100.23"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "198.51.100.23"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "malicious-updates.example"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "malicious-updates.example"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "CVE-2024-3400"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "CVE-2024-3400"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "rclone.exe"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "rclone.exe"
+                    }
+                  }
+                ],
+                "minimum_should_match": 1,
+                "filter": [
+                  {
+                    "term": {
+                      "ttp.keyword": "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "splunk_spl": "search index=security_events (message=\"*198.51.100.23*\" OR message=\"*malicious-updates.example*\" OR message=\"*CVE-2024-3400*\" OR message=\"*rclone.exe*\") stage=\"execution\" ttp=\"CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')\" | table _time src_ip dst_ip stage asset ttp message | sort - _time | head 100"
+        },
+        {
+          "id": "hunt-3",
+          "title": "RULE-SIGMA-001",
+          "stage": "execution",
+          "sql": "SELECT timestamp, src_ip, dst_ip, message, stage, asset FROM security_events WHERE (message ILIKE '%198.51.100.23%' OR message ILIKE '%malicious-updates.example%' OR message ILIKE '%CVE-2024-3400%' OR message ILIKE '%rclone.exe%') AND stage = 'execution' ORDER BY timestamp DESC LIMIT 100;",
+          "elasticsearch_dsl": {
+            "size": 100,
+            "sort": [
+              {
+                "timestamp": {
+                  "order": "desc"
+                }
+              }
+            ],
+            "_source": [
+              "timestamp",
+              "src_ip",
+              "dst_ip",
+              "message",
+              "stage",
+              "asset",
+              "ttp"
+            ],
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "stage.keyword": "execution"
+                    }
+                  }
+                ],
+                "should": [
+                  {
+                    "match_phrase": {
+                      "message": "198.51.100.23"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "198.51.100.23"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "malicious-updates.example"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "malicious-updates.example"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "CVE-2024-3400"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "CVE-2024-3400"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "message": "rclone.exe"
+                    }
+                  },
+                  {
+                    "match_phrase": {
+                      "ioc": "rclone.exe"
+                    }
+                  }
+                ],
+                "minimum_should_match": 1,
+                "filter": [
+                  {
+                    "term": {
+                      "ttp.keyword": "attack.t1059.001"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "splunk_spl": "search index=security_events (message=\"*198.51.100.23*\" OR message=\"*malicious-updates.example*\" OR message=\"*CVE-2024-3400*\" OR message=\"*rclone.exe*\") stage=\"execution\" ttp=\"attack.t1059.001\" | table _time src_ip dst_ip stage asset ttp message | sort - _time | head 100"
+        }
+      ],
+      "observability_panel": {
+        "cache_hit": {
+          "rag": false,
+          "layered_agents": false
+        },
+        "planner": {
+          "early_stop_count": 0,
+          "ranked_action_count": 3
+        },
+        "stage_elapsed_ms": {
+          "triage": 0,
+          "rag": 1766,
+          "planning": 47285,
+          "audit": 0
+        }
+      },
+      "historical_case_panel": {
+        "has_false_positive_pattern": false,
+        "benign_like_count": 0,
+        "malicious_like_count": 0,
+        "cases": []
+      }
+    },
+    "case_memory": {
+      "stored": true,
+      "case_id": "case-2f882743b04c",
+      "effective_label": "malicious",
+      "storage_file": "/home/kali/SentriX/backend/data/case_memory/cases.jsonl"
+    },
+    "frontend_payload": {
+      "schema_version": "frontend-payload/v1",
+      "page_title": "安全事件研判面板",
+      "incident_overview": {
+        "event_summary": "IDS detects suspicious outbound traffic and privilege escalation on db-prod-01",
+        "affected_assets": [
+          "db-prod-01",
+          "web-prod-02"
+        ],
+        "ioc": {
+          "ip": [
+            "198.51.100.23"
+          ],
+          "domain": [
+            "malicious-updates.example"
+          ],
+          "cve": [
+            "CVE-2024-3400"
+          ],
+          "process": [
+            "rclone.exe"
+          ]
+        },
+        "timestamp": "2026-04-12T08:30:00Z",
+        "source": "json"
+      },
+      "cards": [
+        {
+          "key": "top_threat",
+          "label": "首要威胁",
+          "value": "Palo Alto PAN-OS command injection",
+          "tone": "danger"
+        },
+        {
+          "key": "recommended_action",
+          "label": "推荐动作",
+          "value": "隔离 db-prod-01 的对外连接",
+          "tone": "primary"
+        },
+        {
+          "key": "audit_result",
+          "label": "审计结果",
+          "value": "pass",
+          "tone": "info"
+        },
+        {
+          "key": "execution_allowed",
+          "label": "是否可执行",
+          "value": "是",
+          "tone": "success"
+        }
+      ],
+      "confidence": {
+        "scores": {
+          "detection_confidence": 1.0,
+          "response_confidence": 0.8069,
+          "execution_confidence": 0.8069
+        },
+        "levels": {
+          "detection_confidence": "高",
+          "response_confidence": "中",
+          "execution_confidence": "中"
+        },
+        "breakdown": [
+          {
+            "key": "rule_confidence",
+            "label": "规则证据强度",
+            "value": 0.9,
+            "weight": "high"
+          },
+          {
+            "key": "cve_severity",
+            "label": "CVE严重度归一化",
+            "value": 1.0,
+            "weight": "medium"
+          },
+          {
+            "key": "ioc_confidence",
+            "label": "IOC置信度",
+            "value": 0.91,
+            "weight": "medium"
+          },
+          {
+            "key": "audit_factor",
+            "label": "审计系数",
+            "value": 1.0,
+            "weight": "high"
+          }
+        ]
+      },
+      "evidence": {
+        "root_id": "event-root",
+        "nodes": [
+          {
+            "id": "event-root",
+            "type": "incident",
+            "label": "IDS detects suspicious outbound traffic and privilege escalation on db-prod-01",
+            "title": "事件根节点",
+            "subtitle": "Palo Alto PAN-OS command injection",
+            "severity": "high",
+            "meta": {
+              "detection_confidence": 1.0,
+              "asset_count": 2
+            }
+          },
+          {
+            "id": "support-1",
+            "type": "rule",
+            "label": "RULE-SIGMA-001",
+            "title": "powershell -enc",
+            "subtitle": "confidence=0.8",
+            "severity": "medium",
+            "meta": {
+              "evidence_id": "EVID-0007",
+              "severity": 0.86
+            }
+          },
+          {
+            "id": "support-2",
+            "type": "rule",
+            "label": "RULE-CVE-CVE_2019_5129",
+            "title": "CVE-2019-5129 | command | injection | have | been",
+            "subtitle": "confidence=0.9",
+            "severity": "high",
+            "meta": {
+              "evidence_id": "EVID-0008",
+              "severity": 1.0
+            }
+          },
+          {
+            "id": "support-3",
+            "type": "cve",
+            "label": "CVE-2024-3400",
+            "title": "Palo Alto PAN-OS command injection",
+            "subtitle": "confidence=10.0",
+            "severity": "high",
+            "meta": {
+              "evidence_id": "EVID-0001",
+              "severity": 10.0
+            }
+          },
+          {
+            "id": "support-4",
+            "type": "ioc",
+            "label": "198.51.100.23",
+            "title": "C2 IP",
+            "subtitle": "confidence=0.91",
+            "severity": "high",
+            "meta": {
+              "evidence_id": "EVID-0003",
+              "severity": 0.0
+            }
+          },
+          {
+            "id": "support-5",
+            "type": "ioc",
+            "label": "malicious-updates.example",
+            "title": "Phishing domain",
+            "subtitle": "confidence=0.87",
+            "severity": "high",
+            "meta": {
+              "evidence_id": "EVID-0004",
+              "severity": 0.0
+            }
+          },
+          {
+            "id": "support-6",
+            "type": "ioc",
+            "label": "rclone.exe",
+            "title": "Potential exfiltration tooling",
+            "subtitle": "confidence=0.73",
+            "severity": "medium",
+            "meta": {
+              "evidence_id": "EVID-0005",
+              "severity": 0.0
+            }
+          },
+          {
+            "id": "log-1",
+            "type": "log",
+            "label": "log#1",
+            "title": "EDR alert: rclone.exe spawned by unknown parent process",
+            "subtitle": "raw_log",
+            "severity": "low",
+            "meta": {}
+          },
+          {
+            "id": "log-2",
+            "type": "log",
+            "label": "log#2",
+            "title": "Firewall detected repeated outbound connections to 198.51.100.23:443",
+            "subtitle": "raw_log",
+            "severity": "low",
+            "meta": {}
+          },
+          {
+            "id": "log-3",
+            "type": "log",
+            "label": "log#3",
+            "title": "Sysmon Event ID 10 indicates credential dumping pattern",
+            "subtitle": "raw_log",
+            "severity": "low",
+            "meta": {}
+          }
+        ],
+        "edges": [
+          {
+            "from": "event-root",
+            "to": "support-1",
+            "relation": "supports"
+          },
+          {
+            "from": "event-root",
+            "to": "support-2",
+            "relation": "supports"
+          },
+          {
+            "from": "event-root",
+            "to": "support-3",
+            "relation": "supports"
+          },
+          {
+            "from": "event-root",
+            "to": "support-4",
+            "relation": "supports"
+          },
+          {
+            "from": "event-root",
+            "to": "support-5",
+            "relation": "supports"
+          },
+          {
+            "from": "event-root",
+            "to": "support-6",
+            "relation": "supports"
+          },
+          {
+            "from": "event-root",
+            "to": "log-1",
+            "relation": "observed_in"
+          },
+          {
+            "from": "event-root",
+            "to": "log-2",
+            "relation": "observed_in"
+          },
+          {
+            "from": "event-root",
+            "to": "log-3",
+            "relation": "observed_in"
+          }
+        ],
+        "legend": {
+          "incident": "事件",
+          "rule": "规则",
+          "cve": "漏洞",
+          "ioc": "IOC",
+          "log": "日志片段"
+        }
+      },
+      "downgrade": [],
+      "timeline": [
+        {
+          "id": "tl-1",
+          "stage": "detection",
+          "label": "威胁检测",
+          "value": "规则=2 / CVE=1"
+        },
+        {
+          "id": "tl-2",
+          "stage": "analysis",
+          "label": "威胁分析",
+          "value": "优先威胁=3"
+        },
+        {
+          "id": "tl-3",
+          "stage": "response",
+          "label": "响应规划",
+          "value": "隔离 db-prod-01 的对外连接"
+        },
+        {
+          "id": "tl-4",
+          "stage": "audit",
+          "label": "执行审计",
+          "value": "pass"
+        }
+      ],
+      "checklist": [
+        {
+          "key": "check_top_threat",
+          "label": "确认首要威胁是否符合人工研判",
+          "status": "todo"
+        },
+        {
+          "key": "check_action",
+          "label": "确认推荐动作与资产影响范围",
+          "status": "todo"
+        },
+        {
+          "key": "check_evidence",
+          "label": "复核关键证据节点与原始日志",
+          "status": "todo"
+        }
+      ],
+      "hunt": {
+        "tabs": [
+          {
+            "id": "hunt-1",
+            "title": "Palo Alto PAN-OS command injection",
+            "stage": "execution",
+            "sql": "SELECT timestamp, src_ip, dst_ip, message, stage, asset FROM security_events WHERE (message ILIKE '%198.51.100.23%' OR message ILIKE '%malicious-updates.example%' OR message ILIKE '%CVE-2024-3400%' OR message ILIKE '%rclone.exe%') AND stage = 'execution' ORDER BY timestamp DESC LIMIT 100;",
+            "elasticsearch_dsl": {
+              "size": 100,
+              "sort": [
+                {
+                  "timestamp": {
+                    "order": "desc"
+                  }
+                }
+              ],
+              "_source": [
+                "timestamp",
+                "src_ip",
+                "dst_ip",
+                "message",
+                "stage",
+                "asset",
+                "ttp"
+              ],
+              "query": {
+                "bool": {
+                  "must": [
+                    {
+                      "term": {
+                        "stage.keyword": "execution"
+                      }
+                    }
+                  ],
+                  "should": [
+                    {
+                      "match_phrase": {
+                        "message": "198.51.100.23"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "ioc": "198.51.100.23"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "message": "malicious-updates.example"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "ioc": "malicious-updates.example"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "message": "CVE-2024-3400"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "ioc": "CVE-2024-3400"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "message": "rclone.exe"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "ioc": "rclone.exe"
+                      }
+                    }
+                  ],
+                  "minimum_should_match": 1,
+                  "filter": []
+                }
+              }
+            },
+            "splunk_spl": "search index=security_events (message=\"*198.51.100.23*\" OR message=\"*malicious-updates.example*\" OR message=\"*CVE-2024-3400*\" OR message=\"*rclone.exe*\") stage=\"execution\" | table _time src_ip dst_ip stage asset ttp message | sort - _time | head 100"
+          },
+          {
+            "id": "hunt-2",
+            "title": "RULE-CVE-CVE_2019_5129",
+            "stage": "execution",
+            "sql": "SELECT timestamp, src_ip, dst_ip, message, stage, asset FROM security_events WHERE (message ILIKE '%198.51.100.23%' OR message ILIKE '%malicious-updates.example%' OR message ILIKE '%CVE-2024-3400%' OR message ILIKE '%rclone.exe%') AND stage = 'execution' ORDER BY timestamp DESC LIMIT 100;",
+            "elasticsearch_dsl": {
+              "size": 100,
+              "sort": [
+                {
+                  "timestamp": {
+                    "order": "desc"
+                  }
+                }
+              ],
+              "_source": [
+                "timestamp",
+                "src_ip",
+                "dst_ip",
+                "message",
+                "stage",
+                "asset",
+                "ttp"
+              ],
+              "query": {
+                "bool": {
+                  "must": [
+                    {
+                      "term": {
+                        "stage.keyword": "execution"
+                      }
+                    }
+                  ],
+                  "should": [
+                    {
+                      "match_phrase": {
+                        "message": "198.51.100.23"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "ioc": "198.51.100.23"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "message": "malicious-updates.example"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "ioc": "malicious-updates.example"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "message": "CVE-2024-3400"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "ioc": "CVE-2024-3400"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "message": "rclone.exe"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "ioc": "rclone.exe"
+                      }
+                    }
+                  ],
+                  "minimum_should_match": 1,
+                  "filter": [
+                    {
+                      "term": {
+                        "ttp.keyword": "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "splunk_spl": "search index=security_events (message=\"*198.51.100.23*\" OR message=\"*malicious-updates.example*\" OR message=\"*CVE-2024-3400*\" OR message=\"*rclone.exe*\") stage=\"execution\" ttp=\"CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')\" | table _time src_ip dst_ip stage asset ttp message | sort - _time | head 100"
+          },
+          {
+            "id": "hunt-3",
+            "title": "RULE-SIGMA-001",
+            "stage": "execution",
+            "sql": "SELECT timestamp, src_ip, dst_ip, message, stage, asset FROM security_events WHERE (message ILIKE '%198.51.100.23%' OR message ILIKE '%malicious-updates.example%' OR message ILIKE '%CVE-2024-3400%' OR message ILIKE '%rclone.exe%') AND stage = 'execution' ORDER BY timestamp DESC LIMIT 100;",
+            "elasticsearch_dsl": {
+              "size": 100,
+              "sort": [
+                {
+                  "timestamp": {
+                    "order": "desc"
+                  }
+                }
+              ],
+              "_source": [
+                "timestamp",
+                "src_ip",
+                "dst_ip",
+                "message",
+                "stage",
+                "asset",
+                "ttp"
+              ],
+              "query": {
+                "bool": {
+                  "must": [
+                    {
+                      "term": {
+                        "stage.keyword": "execution"
+                      }
+                    }
+                  ],
+                  "should": [
+                    {
+                      "match_phrase": {
+                        "message": "198.51.100.23"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "ioc": "198.51.100.23"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "message": "malicious-updates.example"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "ioc": "malicious-updates.example"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "message": "CVE-2024-3400"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "ioc": "CVE-2024-3400"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "message": "rclone.exe"
+                      }
+                    },
+                    {
+                      "match_phrase": {
+                        "ioc": "rclone.exe"
+                      }
+                    }
+                  ],
+                  "minimum_should_match": 1,
+                  "filter": [
+                    {
+                      "term": {
+                        "ttp.keyword": "attack.t1059.001"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "splunk_spl": "search index=security_events (message=\"*198.51.100.23*\" OR message=\"*malicious-updates.example*\" OR message=\"*CVE-2024-3400*\" OR message=\"*rclone.exe*\") stage=\"execution\" ttp=\"attack.t1059.001\" | table _time src_ip dst_ip stage asset ttp message | sort - _time | head 100"
+          }
+        ],
+        "count": 3
+      },
+      "execution": {
+        "mode": "hybrid",
+        "guardrails": [
+          "仅在audit_result=pass且execution_allowed=true时允许下发",
+          "执行前确认目标资产列表与当前事件一致",
+          "Shell命令需在隔离或受控终端中执行",
+          "API调用需校验鉴权与变更窗口",
+          "优先针对资产 db-prod-01 执行"
+        ],
+        "playbook": {
+          "playbook_id": "playbook-a1",
+          "title": "隔离 db-prod-01 的对外连接",
+          "mode": "hybrid",
+          "stage": "containment",
+          "steps": [
+            {
+              "id": "a1-step-1",
+              "name": "封禁C2出口",
+              "mode": "serial",
+              "parallel_group": "contain",
+              "estimated_cost_minutes": 5
+            },
+            {
+              "id": "a1-step-2",
+              "name": "应用EDR隔离",
+              "mode": "parallel",
+              "parallel_group": "contain",
+              "estimated_cost_minutes": 8
+            }
+          ],
+          "rollback_hint": "撤销隔离策略并恢复网络连通性"
+        },
+        "tasks": [
+          {
+            "task_id": "task-a1-1",
+            "name": "封禁C2出口",
+            "execution_type": "hybrid",
+            "parallel_group": "contain",
+            "mode": "serial",
+            "stage": "containment",
+            "shell": "iptables -A OUTPUT -d 198.51.100.23 -j DROP",
+            "api": "POST /edr/isolate?asset=db-prod-01",
+            "estimated_cost_minutes": 5,
+            "target_assets": [
+              "db-prod-01"
+            ],
+            "requires_approval": false
+          },
+          {
+            "task_id": "task-a1-2",
+            "name": "应用EDR隔离",
+            "execution_type": "hybrid",
+            "parallel_group": "contain",
+            "mode": "parallel",
+            "stage": "containment",
+            "shell": "",
+            "api": "",
+            "estimated_cost_minutes": 8,
+            "target_assets": [
+              "db-prod-01"
+            ],
+            "requires_approval": false
+          }
+        ],
+        "summary": {
+          "action_name": "隔离 db-prod-01 的对外连接",
+          "stage": "containment",
+          "task_count": 2,
+          "has_shell": true,
+          "has_api": true,
+          "parallel_groups": [
+            "contain"
+          ],
+          "approval_count": 0
+        }
+      },
+      "orchestration": {
+        "graph_id": "orchestrate-a1",
+        "strategy": "serial_with_parallel_groups",
+        "nodes": [
+          {
+            "id": "task-a1-1",
+            "type": "parallel_task",
+            "name": "封禁C2出口",
+            "stage": "containment",
+            "execution_type": "hybrid",
+            "mode": "serial",
+            "parallel_group": "contain",
+            "requires_approval": false
+          },
+          {
+            "id": "task-a1-2",
+            "type": "parallel_task",
+            "name": "应用EDR隔离",
+            "stage": "containment",
+            "execution_type": "hybrid",
+            "mode": "parallel",
+            "parallel_group": "contain",
+            "requires_approval": false
+          }
+        ],
+        "edges": [],
+        "approval_nodes": [],
+        "rollback_plan": {
+          "strategy": "reverse_order_on_failure",
+          "tasks": [
+            {
+              "task_id": "rollback-task-a1-1",
+              "for_task": "task-a1-1",
+              "name": "回滚 封禁C2出口",
+              "instruction": "撤销隔离策略并恢复网络连通性"
+            },
+            {
+              "task_id": "rollback-task-a1-2",
+              "for_task": "task-a1-2",
+              "name": "回滚 应用EDR隔离",
+              "instruction": "撤销隔离策略并恢复网络连通性"
+            }
+          ]
+        },
+        "execution_order": [
+          "task-a1-1",
+          "task-a1-2"
+        ]
+      },
+      "case_memory": {
+        "stored": true,
+        "case_id": "case-2f882743b04c",
+        "effective_label": "malicious",
+        "storage_file": "/home/kali/SentriX/backend/data/case_memory/cases.jsonl",
+        "historical_panel": {
+          "has_false_positive_pattern": false,
+          "benign_like_count": 0,
+          "malicious_like_count": 0,
+          "cases": []
+        }
+      },
+      "observability": {
+        "cache_hit": {
+          "rag": false,
+          "layered_agents": false
+        },
+        "planner": {
+          "early_stop_count": 0,
+          "ranked_action_count": 3
+        },
+        "stage_elapsed_ms": {
+          "triage": 0,
+          "rag": 1766,
+          "planning": 47285,
+          "audit": 0
+        }
+      }
+    }
+  }
+}

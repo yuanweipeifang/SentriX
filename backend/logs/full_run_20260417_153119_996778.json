@@ -1,0 +1,2239 @@
+{
+  "incident_meta": {
+    "source": "json",
+    "path": "/home/kali/SentriX/backend/data/sample_incident.json"
+  },
+  "rag_summary": {
+    "summary": "RAG检索完成（SQLite数据库检索 + 本地补全 + 规则特征）",
+    "matched_iocs": 3,
+    "matched_cves": 1,
+    "matched_rules": 1,
+    "similar_cases": 3
+  },
+  "state_snapshot": {
+    "containment": 0.21000000000000002,
+    "assessment": 0.48,
+    "preservation": 0.05,
+    "eviction": 0.11,
+    "hardening": 0.23000000000000004,
+    "restoration": 0.05,
+    "explanation": "状态评估基于日志关键词匹配与IOC上下文。当前较高维度为: assessment=0.48, hardening=0.23。 当前短板维度为: preservation, restoration。已分析日志条数: 4。",
+    "recovery": 0.05
+  },
+  "candidates_raw": [
+    {
+      "action_id": "a2",
+      "action_name": "采集 db-prod-01 内存与磁盘镜像",
+      "description": "在清除前先进行证据保全，支持溯源和合规。",
+      "target_stage": "preservation",
+      "estimated_cost": 20.0,
+      "risk_penalty": 0.15,
+      "confidence": 0.79,
+      "reasoning": "当前取证保全维度较低，优先补齐证据链。",
+      "command": "velociraptor collect --target db-prod-01 --profile memory,disk",
+      "api_call": "POST /forensics/acquire?asset=db-prod-01",
+      "effects": {
+        "containment": 0.0,
+        "assessment": 0.1,
+        "preservation": 0.45,
+        "eviction": 0.0,
+        "hardening": 0.0,
+        "restoration": 0.0
+      },
+      "target_assets": [
+        "db-prod-01"
+      ],
+      "capability_tags": [
+        "forensics_collection"
+      ],
+      "sub_steps": [
+        {
+          "name": "内存采集",
+          "cost_minutes": 18,
+          "mode": "parallel",
+          "group": "forensics"
+        },
+        {
+          "name": "磁盘采集",
+          "cost_minutes": 20,
+          "mode": "parallel",
+          "group": "forensics"
+        }
+      ],
+      "parallel_group": "forensics",
+      "id": "a2",
+      "name": "采集 db-prod-01 内存与磁盘镜像",
+      "stage": "preservation",
+      "risk": 0.15,
+      "cost_minutes": 20.0,
+      "reason": "当前取证保全维度较低，优先补齐证据链。"
+    },
+    {
+      "action_id": "a5",
+      "action_name": "恢复 db-prod-01 关键服务并验证",
+      "description": "恢复业务服务并执行验证，推进恢复完成。",
+      "target_stage": "restoration",
+      "estimated_cost": 12.0,
+      "risk_penalty": 0.3,
+      "confidence": 0.72,
+      "reasoning": "在遏制与清除后执行业务恢复与验证。",
+      "command": "systemctl restart critical-service && systemctl status critical-service",
+      "api_call": "POST /ops/recover?asset=db-prod-01",
+      "effects": {
+        "containment": 0.0,
+        "assessment": 0.1,
+        "preservation": 0.0,
+        "eviction": 0.0,
+        "hardening": 0.0,
+        "restoration": 0.45
+      },
+      "target_assets": [
+        "db-prod-01"
+      ],
+      "capability_tags": [
+        "service_recovery"
+      ],
+      "sub_steps": [
+        {
+          "name": "服务重启",
+          "cost_minutes": 8,
+          "mode": "serial"
+        },
+        {
+          "name": "健康检查",
+          "cost_minutes": 4,
+          "mode": "serial"
+        }
+      ],
+      "parallel_group": "recovery",
+      "id": "a5",
+      "name": "恢复 db-prod-01 关键服务并验证",
+      "stage": "restoration",
+      "risk": 0.3,
+      "cost_minutes": 12.0,
+      "reason": "在遏制与清除后执行业务恢复与验证。"
+    },
+    {
+      "action_id": "a1",
+      "action_name": "隔离 db-prod-01 的对外连接",
+      "description": "阻断可疑外联，优先遏制攻击扩散。",
+      "target_stage": "containment",
+      "estimated_cost": 8.0,
+      "risk_penalty": 0.25,
+      "confidence": 0.84,
+      "reasoning": "IOC显示存在C2外联，优先执行网络遏制。",
+      "command": "iptables -A OUTPUT -d 198.51.100.23 -j DROP",
+      "api_call": "POST /edr/isolate?asset=db-prod-01",
+      "effects": {
+        "containment": 0.35,
+        "assessment": 0.1,
+        "preservation": 0.0,
+        "eviction": 0.0,
+        "hardening": 0.0,
+        "restoration": 0.0
+      },
+      "target_assets": [
+        "db-prod-01"
+      ],
+      "capability_tags": [
+        "network_isolation"
+      ],
+      "sub_steps": [
+        {
+          "name": "封禁C2出口",
+          "cost_minutes": 5,
+          "mode": "serial"
+        },
+        {
+          "name": "应用EDR隔离",
+          "cost_minutes": 8,
+          "mode": "parallel",
+          "group": "contain"
+        }
+      ],
+      "parallel_group": "contain",
+      "id": "a1",
+      "name": "隔离 db-prod-01 的对外连接",
+      "stage": "containment",
+      "risk": 0.25,
+      "cost_minutes": 8.0,
+      "reason": "IOC显示存在C2外联，优先执行网络遏制。"
+    }
+  ],
+  "filter_audit": [],
+  "planning_trace": [
+    {
+      "action": {
+        "action_id": "a1",
+        "action_name": "隔离 db-prod-01 的对外连接",
+        "description": "阻断可疑外联，优先遏制攻击扩散。",
+        "target_stage": "containment",
+        "estimated_cost": 8.0,
+        "risk_penalty": 0.25,
+        "confidence": 0.84,
+        "reasoning": "IOC显示存在C2外联，优先执行网络遏制。",
+        "command": "iptables -A OUTPUT -d 198.51.100.23 -j DROP",
+        "api_call": "POST /edr/isolate?asset=db-prod-01",
+        "effects": {
+          "containment": 0.35,
+          "assessment": 0.1,
+          "preservation": 0.0,
+          "eviction": 0.0,
+          "hardening": 0.0,
+          "restoration": 0.0
+        },
+        "target_assets": [
+          "db-prod-01"
+        ],
+        "capability_tags": [
+          "network_isolation"
+        ],
+        "sub_steps": [
+          {
+            "name": "封禁C2出口",
+            "cost_minutes": 5,
+            "mode": "serial"
+          },
+          {
+            "name": "应用EDR隔离",
+            "cost_minutes": 8,
+            "mode": "parallel",
+            "group": "contain"
+          }
+        ],
+        "parallel_group": "contain",
+        "id": "a1",
+        "name": "隔离 db-prod-01 的对外连接",
+        "stage": "containment",
+        "risk": 0.25,
+        "cost_minutes": 8.0,
+        "reason": "IOC显示存在C2外联，优先执行网络遏制。"
+      },
+      "projected_state": {
+        "containment": 0.66,
+        "assessment": 0.6467,
+        "preservation": 0.35,
+        "eviction": 0.51,
+        "hardening": 0.3967,
+        "restoration": 0.0833
+      },
+      "rollout_results": [
+        {
+          "projected_state": {
+            "containment": 0.66,
+            "assessment": 0.68,
+            "preservation": 0.5,
+            "eviction": 0.51,
+            "hardening": 0.23,
+            "restoration": 0.05
+          },
+          "cumulative_cost": 39.0,
+          "progress_gain": 0.25,
+          "projected_recovery_time": 39.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a1",
+            "a2",
+            "a3"
+          ]
+        },
+        {
+          "projected_state": {
+            "containment": 0.66,
+            "assessment": 0.58,
+            "preservation": 0.05,
+            "eviction": 0.51,
+            "hardening": 0.73,
+            "restoration": 0.15
+          },
+          "cumulative_cost": 61.0,
+          "progress_gain": 0.2583,
+          "projected_recovery_time": 61.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a1",
+            "a3",
+            "a4"
+          ]
+        },
+        {
+          "projected_state": {
+            "containment": 0.66,
+            "assessment": 0.68,
+            "preservation": 0.5,
+            "eviction": 0.51,
+            "hardening": 0.23,
+            "restoration": 0.05
+          },
+          "cumulative_cost": 39.0,
+          "progress_gain": 0.25,
+          "projected_recovery_time": 39.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a1",
+            "a3",
+            "a2"
+          ]
+        }
+      ],
+      "score": -22.306666666666672,
+      "hallucination_flag": false,
+      "validation_passed": true,
+      "selection_reason": "score=-22.307; progress_gain=0.253; cumulative_cost=46.33; risk_penalty=0.25."
+    },
+    {
+      "action": {
+        "action_id": "a2",
+        "action_name": "采集 db-prod-01 内存与磁盘镜像",
+        "description": "在清除前先进行证据保全，支持溯源和合规。",
+        "target_stage": "preservation",
+        "estimated_cost": 20.0,
+        "risk_penalty": 0.15,
+        "confidence": 0.79,
+        "reasoning": "当前取证保全维度较低，优先补齐证据链。",
+        "command": "velociraptor collect --target db-prod-01 --profile memory,disk",
+        "api_call": "POST /forensics/acquire?asset=db-prod-01",
+        "effects": {
+          "containment": 0.0,
+          "assessment": 0.1,
+          "preservation": 0.45,
+          "eviction": 0.0,
+          "hardening": 0.0,
+          "restoration": 0.0
+        },
+        "target_assets": [
+          "db-prod-01"
+        ],
+        "capability_tags": [
+          "forensics_collection"
+        ],
+        "sub_steps": [
+          {
+            "name": "内存采集",
+            "cost_minutes": 18,
+            "mode": "parallel",
+            "group": "forensics"
+          },
+          {
+            "name": "磁盘采集",
+            "cost_minutes": 20,
+            "mode": "parallel",
+            "group": "forensics"
+          }
+        ],
+        "parallel_group": "forensics",
+        "id": "a2",
+        "name": "采集 db-prod-01 内存与磁盘镜像",
+        "stage": "preservation",
+        "risk": 0.15,
+        "cost_minutes": 20.0,
+        "reason": "当前取证保全维度较低，优先补齐证据链。"
+      },
+      "projected_state": {
+        "containment": 0.4767,
+        "assessment": 0.7133,
+        "preservation": 0.5,
+        "eviction": 0.2433,
+        "hardening": 0.3967,
+        "restoration": 0.3833
+      },
+      "rollout_results": [
+        {
+          "projected_state": {
+            "containment": 0.66,
+            "assessment": 0.68,
+            "preservation": 0.5,
+            "eviction": 0.51,
+            "hardening": 0.23,
+            "restoration": 0.05
+          },
+          "cumulative_cost": 39.0,
+          "progress_gain": 0.25,
+          "projected_recovery_time": 39.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a2",
+            "a1",
+            "a3"
+          ]
+        },
+        {
+          "projected_state": {
+            "containment": 0.56,
+            "assessment": 0.78,
+            "preservation": 0.5,
+            "eviction": 0.11,
+            "hardening": 0.23,
+            "restoration": 0.5
+          },
+          "cumulative_cost": 45.0,
+          "progress_gain": 0.2583,
+          "projected_recovery_time": 45.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a2",
+            "a5",
+            "a1"
+          ]
+        },
+        {
+          "projected_state": {
+            "containment": 0.21,
+            "assessment": 0.68,
+            "preservation": 0.5,
+            "eviction": 0.11,
+            "hardening": 0.73,
+            "restoration": 0.6
+          },
+          "cumulative_cost": 74.0,
+          "progress_gain": 0.2833,
+          "projected_recovery_time": 74.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a2",
+            "a5",
+            "a4"
+          ]
+        }
+      ],
+      "score": -27.03,
+      "hallucination_flag": false,
+      "validation_passed": true,
+      "selection_reason": "score=-27.030; progress_gain=0.264; cumulative_cost=52.67; risk_penalty=0.15."
+    },
+    {
+      "action": {
+        "action_id": "a5",
+        "action_name": "恢复 db-prod-01 关键服务并验证",
+        "description": "恢复业务服务并执行验证，推进恢复完成。",
+        "target_stage": "restoration",
+        "estimated_cost": 12.0,
+        "risk_penalty": 0.3,
+        "confidence": 0.72,
+        "reasoning": "在遏制与清除后执行业务恢复与验证。",
+        "command": "systemctl restart critical-service && systemctl status critical-service",
+        "api_call": "POST /ops/recover?asset=db-prod-01",
+        "effects": {
+          "containment": 0.0,
+          "assessment": 0.1,
+          "preservation": 0.0,
+          "eviction": 0.0,
+          "hardening": 0.0,
+          "restoration": 0.45
+        },
+        "target_assets": [
+          "db-prod-01"
+        ],
+        "capability_tags": [
+          "service_recovery"
+        ],
+        "sub_steps": [
+          {
+            "name": "服务重启",
+            "cost_minutes": 8,
+            "mode": "serial"
+          },
+          {
+            "name": "健康检查",
+            "cost_minutes": 4,
+            "mode": "serial"
+          }
+        ],
+        "parallel_group": "recovery",
+        "id": "a5",
+        "name": "恢复 db-prod-01 关键服务并验证",
+        "stage": "restoration",
+        "risk": 0.3,
+        "cost_minutes": 12.0,
+        "reason": "在遏制与清除后执行业务恢复与验证。"
+      },
+      "projected_state": {
+        "containment": 0.51,
+        "assessment": 0.6467,
+        "preservation": 0.05,
+        "eviction": 0.3767,
+        "hardening": 0.5633,
+        "restoration": 0.5667
+      },
+      "rollout_results": [
+        {
+          "projected_state": {
+            "containment": 0.56,
+            "assessment": 0.68,
+            "preservation": 0.05,
+            "eviction": 0.11,
+            "hardening": 0.73,
+            "restoration": 0.6
+          },
+          "cumulative_cost": 67.0,
+          "progress_gain": 0.2667,
+          "projected_recovery_time": 67.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a5",
+            "a1",
+            "a4"
+          ]
+        },
+        {
+          "projected_state": {
+            "containment": 0.31,
+            "assessment": 0.58,
+            "preservation": 0.05,
+            "eviction": 0.51,
+            "hardening": 0.73,
+            "restoration": 0.6
+          },
+          "cumulative_cost": 60.0,
+          "progress_gain": 0.275,
+          "projected_recovery_time": 60.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a5",
+            "a3",
+            "a4"
+          ]
+        },
+        {
+          "projected_state": {
+            "containment": 0.66,
+            "assessment": 0.68,
+            "preservation": 0.05,
+            "eviction": 0.51,
+            "hardening": 0.23,
+            "restoration": 0.5
+          },
+          "cumulative_cost": 31.0,
+          "progress_gain": 0.25,
+          "projected_recovery_time": 31.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a5",
+            "a3",
+            "a1"
+          ]
+        }
+      ],
+      "score": -27.776666666666664,
+      "hallucination_flag": false,
+      "validation_passed": true,
+      "selection_reason": "score=-27.777; progress_gain=0.264; cumulative_cost=52.67; risk_penalty=0.30."
+    }
+  ],
+  "scores": [
+    {
+      "action_id": "a1",
+      "score": -22.306666666666672,
+      "validation_passed": true
+    },
+    {
+      "action_id": "a2",
+      "score": -27.03,
+      "validation_passed": true
+    },
+    {
+      "action_id": "a5",
+      "score": -27.776666666666664,
+      "validation_passed": true
+    }
+  ],
+  "best_action_reason": "score=-22.307; progress_gain=0.253; cumulative_cost=46.33; risk_penalty=0.25.",
+  "final_output": {
+    "audit_result": "pass",
+    "execution_allowed": true,
+    "best_action": {
+      "action_id": "a1",
+      "action_name": "隔离 db-prod-01 的对外连接",
+      "description": "阻断可疑外联，优先遏制攻击扩散。",
+      "target_stage": "containment",
+      "estimated_cost": 8.0,
+      "risk_penalty": 0.25,
+      "confidence": 0.84,
+      "reasoning": "IOC显示存在C2外联，优先执行网络遏制。",
+      "command": "iptables -A OUTPUT -d 198.51.100.23 -j DROP",
+      "api_call": "POST /edr/isolate?asset=db-prod-01",
+      "effects": {
+        "containment": 0.35,
+        "assessment": 0.1,
+        "preservation": 0.0,
+        "eviction": 0.0,
+        "hardening": 0.0,
+        "restoration": 0.0
+      },
+      "target_assets": [
+        "db-prod-01"
+      ],
+      "capability_tags": [
+        "network_isolation"
+      ],
+      "sub_steps": [
+        {
+          "name": "封禁C2出口",
+          "cost_minutes": 5,
+          "mode": "serial"
+        },
+        {
+          "name": "应用EDR隔离",
+          "cost_minutes": 8,
+          "mode": "parallel",
+          "group": "contain"
+        }
+      ],
+      "parallel_group": "contain",
+      "id": "a1",
+      "name": "隔离 db-prod-01 的对外连接",
+      "stage": "containment",
+      "risk": 0.25,
+      "cost_minutes": 8.0,
+      "reason": "IOC显示存在C2外联，优先执行网络遏制。"
+    }
+  },
+  "result": {
+    "incident": {
+      "event_summary": "IDS detects suspicious outbound traffic and privilege escalation on db-prod-01",
+      "ioc": {
+        "ip": [
+          "198.51.100.23"
+        ],
+        "domain": [
+          "malicious-updates.example"
+        ],
+        "cve": [
+          "CVE-2024-3400"
+        ],
+        "process": [
+          "rclone.exe"
+        ]
+      },
+      "affected_assets": [
+        "db-prod-01",
+        "web-prod-02"
+      ],
+      "raw_logs": [
+        "EDR alert: rclone.exe spawned by unknown parent process",
+        "Firewall detected repeated outbound connections to 198.51.100.23:443",
+        "Sysmon Event ID 10 indicates credential dumping pattern",
+        "IDS alert: anomaly score above threshold and suspicious DNS requests"
+      ],
+      "timestamp": "2026-04-12T08:30:00Z"
+    },
+    "state": {
+      "containment": 0.21000000000000002,
+      "assessment": 0.48,
+      "preservation": 0.05,
+      "eviction": 0.11,
+      "hardening": 0.23000000000000004,
+      "restoration": 0.05,
+      "explanation": "状态评估基于日志关键词匹配与IOC上下文。当前较高维度为: assessment=0.48, hardening=0.23。 当前短板维度为: preservation, restoration。已分析日志条数: 4。",
+      "recovery": 0.05
+    },
+    "rag": {
+      "summary": "RAG检索完成（SQLite数据库检索 + 本地补全 + 规则特征）",
+      "cve_findings": [
+        {
+          "cve": "CVE-2024-3400",
+          "severity": 10.0,
+          "description": "Palo Alto PAN-OS command injection",
+          "ttp": "Persistence",
+          "evidence_id": "EVID-0001",
+          "source_url": "https://nvd.nist.gov/vuln/detail/CVE-2024-3400",
+          "source_type": "sqlite_cve_db"
+        }
+      ],
+      "ioc_findings": [
+        {
+          "ioc": "198.51.100.23",
+          "threat": "C2 IP",
+          "confidence": 0.91,
+          "evidence_id": "EVID-0003",
+          "source_url": "https://example.local/ioc/198.51.100.23",
+          "source_type": "sqlite_ioc_db"
+        },
+        {
+          "ioc": "malicious-updates.example",
+          "threat": "Phishing domain",
+          "confidence": 0.87,
+          "evidence_id": "EVID-0004",
+          "source_url": "https://example.local/ioc/malicious-updates.example",
+          "source_type": "sqlite_ioc_db"
+        },
+        {
+          "ioc": "rclone.exe",
+          "threat": "Potential exfiltration tooling",
+          "confidence": 0.73,
+          "evidence_id": "EVID-0005",
+          "source_url": "https://example.local/ioc/rclone.exe",
+          "source_type": "sqlite_ioc_db"
+        }
+      ],
+      "asset_findings": [
+        {
+          "asset": "db-prod-01",
+          "criticality": "high",
+          "owner": "data-platform",
+          "evidence_id": "EVID-0002",
+          "source_url": "https://example.local/asset/db-prod-01",
+          "source_type": "sqlite_asset_db"
+        },
+        {
+          "asset": "web-prod-02",
+          "criticality": "medium",
+          "owner": "web-team",
+          "evidence_id": "EVID-0006",
+          "source_url": "https://example.local/asset/web-prod-02",
+          "source_type": "sqlite_asset_db"
+        }
+      ],
+      "rule_findings": [
+        {
+          "rule_id": "RULE-SIGMA-001",
+          "rule_type": "sigma",
+          "pattern": "powershell -enc",
+          "ttp": "attack.t1059.001",
+          "severity": 0.86,
+          "confidence": 0.8,
+          "source": "builtin_sigma",
+          "version": "v1",
+          "evidence_id": "EVID-0007",
+          "source_url": "https://attack.mitre.org/techniques/T1059/001/",
+          "source_type": "sqlite_rule_db"
+        }
+      ],
+      "compressed_context": "CVE关键项: [{'cve': 'CVE-2024-3400', 'severity': 10.0, 'description': 'Palo Alto PAN-OS command injection', 'ttp': 'Persistence', 'evidence_id': 'EVID-0001', 'source_url': 'https://nvd.nist.gov/vuln/detail/CVE-2024-3400', 'source_type': 'sqlite_cve_db'}]. IOC关键项: [{'ioc': '198.51.100.23', 'threat': 'C2 IP', 'confidence': 0.91, 'evidence_id': 'EVID-0003', 'source_url': 'https://example.local/ioc/198.51.100.23', 'source_type': 'sqlite_ioc_db'}, {'ioc': 'malicious-updates.example', 'threat': 'Phishing domain', 'confidence': 0.87, 'evidence_id': 'EVID-0004', 'source_url': 'https://example.local/ioc/malicious-updates.example', 'source_type': 'sqlite_ioc_db'}, {'ioc': 'rclone.exe', 'threat': 'Potential exfiltration tooling', 'confidence': 0.73, 'evidence_id': 'EVID-0005', 'source_url': 'https://example.local/ioc/rclone.exe', 'source_type': 'sqlite_ioc_db'}]. 资产关键项: [{'asset': 'db-prod-01', 'criticality': 'high', 'owner': 'data-platform', 'evidence_id': 'EVID-0002', 'source_url': 'https://example.local/asset/db-prod-01', 'source_type': 'sqlite_asset_db'}, {'asset': 'web-prod-02', 'criticality': 'medium', 'owner': 'web-team', 'evidence_id': 'EVID-0006', 'source_url': 'https://example.local/asset/web-prod-02', 'source_type': 'sqlite_asset_db'}]. 规则关键项: [{'rule_id': 'RULE-SIGMA-001', 'rule_type': 'sigma', 'pattern': 'powershell -enc', 'ttp': 'attack.t1059.001', 'severity': 0.86, 'confidence': 0.8, 'source': 'builtin_sigma', 'version': 'v1', 'evidence_id': 'EVID-0007', 'source_url': 'https://attack.mitre.org/techniques/T1059/001/', 'source_type': 'sqlite_rule_db'}]. 联网情报: []. 证据映射: [{'evidence_id': 'EVID-0001', 'url': 'https://nvd.nist.gov/vuln/detail/CVE-2024-3400'}, {'evidence_id': 'EVID-0003', 'url': 'https://example.local/ioc/198.51.100.23'}, {'evidence_id': 'EVID-0004', 'url': 'https://example.local/ioc/malicious-updates.example'}, {'evidence_id': 'EVID-0005', 'url': 'https://example.local/ioc/rclone.exe'}, {'evidence_id': 'EVID-0002', 'url': 'https://example.local/asset/db-prod-01'}, {'evidence_id': 'EVID-0006', 'url': 'https://example.local/asset/web-prod-02'}, {'evidence_id': 'EVID-0007', 'url': 'https://attack.mitre.org/techniques/T1059/001/'}].",
+      "rag_context": {
+        "threat_summary": "CVE=1; IOC=3; RULE=1; SIMILAR_CASES=3",
+        "matched_iocs": [
+          {
+            "ioc": "198.51.100.23",
+            "threat": "C2 IP",
+            "confidence": 0.91,
+            "evidence_id": "EVID-0003",
+            "source_url": "https://example.local/ioc/198.51.100.23",
+            "source_type": "sqlite_ioc_db"
+          },
+          {
+            "ioc": "malicious-updates.example",
+            "threat": "Phishing domain",
+            "confidence": 0.87,
+            "evidence_id": "EVID-0004",
+            "source_url": "https://example.local/ioc/malicious-updates.example",
+            "source_type": "sqlite_ioc_db"
+          },
+          {
+            "ioc": "rclone.exe",
+            "threat": "Potential exfiltration tooling",
+            "confidence": 0.73,
+            "evidence_id": "EVID-0005",
+            "source_url": "https://example.local/ioc/rclone.exe",
+            "source_type": "sqlite_ioc_db"
+          }
+        ],
+        "matched_rules": [
+          {
+            "rule_id": "RULE-SIGMA-001",
+            "rule_type": "sigma",
+            "pattern": "powershell -enc",
+            "ttp": "attack.t1059.001",
+            "severity": 0.86,
+            "confidence": 0.8,
+            "source": "builtin_sigma",
+            "version": "v1",
+            "evidence_id": "EVID-0007",
+            "source_url": "https://attack.mitre.org/techniques/T1059/001/",
+            "source_type": "sqlite_rule_db"
+          }
+        ],
+        "matched_cves": [
+          {
+            "cve": "CVE-2024-3400",
+            "severity": 10.0,
+            "description": "Palo Alto PAN-OS command injection",
+            "ttp": "Persistence",
+            "evidence_id": "EVID-0001",
+            "source_url": "https://nvd.nist.gov/vuln/detail/CVE-2024-3400",
+            "source_type": "sqlite_cve_db"
+          }
+        ],
+        "similar_cases": [
+          {
+            "case_id": "incident_examples.json:155",
+            "score": 18,
+            "instruction_preview": "Below is a system description, a sequence of network logs (e.g., from an intrusion detection system), and an instruction that describes a task.\nWrite a response that appropriately completes the request.\nBefore generating the response, think",
+            "answer_preview": "I note in the logs that although there is a Snort alert [1:1000001:1] indicating a 'Suspicious HTTP Request Pattern' from the external IP 203.0.113.45 targeting web01.dmz.example.com, this IP is ident"
+          },
+          {
+            "case_id": "incident_examples.json:87",
+            "score": 17,
+            "instruction_preview": "Below is a system description, a sequence of network logs (e.g., from an intrusion detection system), and an instruction that describes a task.\nWrite a response that appropriately completes the request.\nBefore generating the response, think",
+            "answer_preview": "I note that in the logs, all alerts originate from the single external IP address 192.0.2.55 targeting multiple critical services within the HPC cluster, such as OpenMPI on compute01 (198.51.100.10:55"
+          },
+          {
+            "case_id": "incident_examples.json:9",
+            "score": 16,
+            "instruction_preview": "Below is a system description, a sequence of network logs (e.g., from an intrusion detection system), and an instruction that describes a task.\nWrite a response that appropriately completes the request.\nBefore generating the response, think",
+            "answer_preview": "I note that the SSL connection attempt from 10.128.0.30 to an external IP on port 443 is flagged due to the use of a self-signed or untrusted certificate; however, according to the system description,"
+          }
+        ],
+        "recommended_mitigations": [
+          "Restrict script interpreter execution and enforce command-line auditing.",
+          "Patch or mitigate CVE-2024-3400 on affected assets."
+        ],
+        "asset_constraints": [
+          {
+            "asset": "db-prod-01",
+            "criticality": "high",
+            "owner": "data-platform",
+            "constraint": "high_criticality_requires_change_window"
+          },
+          {
+            "asset": "web-prod-02",
+            "criticality": "medium",
+            "owner": "web-team",
+            "constraint": "standard_change"
+          }
+        ]
+      }
+    },
+    "response": {
+      "best_action": {
+        "action_id": "a1",
+        "action_name": "隔离 db-prod-01 的对外连接",
+        "description": "阻断可疑外联，优先遏制攻击扩散。",
+        "target_stage": "containment",
+        "estimated_cost": 8.0,
+        "risk_penalty": 0.25,
+        "confidence": 0.84,
+        "reasoning": "IOC显示存在C2外联，优先执行网络遏制。",
+        "command": "iptables -A OUTPUT -d 198.51.100.23 -j DROP",
+        "api_call": "POST /edr/isolate?asset=db-prod-01",
+        "effects": {
+          "containment": 0.35,
+          "assessment": 0.1,
+          "preservation": 0.0,
+          "eviction": 0.0,
+          "hardening": 0.0,
+          "restoration": 0.0
+        },
+        "target_assets": [
+          "db-prod-01"
+        ],
+        "capability_tags": [
+          "network_isolation"
+        ],
+        "sub_steps": [
+          {
+            "name": "封禁C2出口",
+            "cost_minutes": 5,
+            "mode": "serial"
+          },
+          {
+            "name": "应用EDR隔离",
+            "cost_minutes": 8,
+            "mode": "parallel",
+            "group": "contain"
+          }
+        ],
+        "parallel_group": "contain",
+        "id": "a1",
+        "name": "隔离 db-prod-01 的对外连接",
+        "stage": "containment",
+        "risk": 0.25,
+        "cost_minutes": 8.0,
+        "reason": "IOC显示存在C2外联，优先执行网络遏制。"
+      },
+      "recommended_action": {
+        "action_id": "a1",
+        "action_name": "隔离 db-prod-01 的对外连接",
+        "description": "阻断可疑外联，优先遏制攻击扩散。",
+        "target_stage": "containment",
+        "estimated_cost": 8.0,
+        "risk_penalty": 0.25,
+        "confidence": 0.84,
+        "reasoning": "IOC显示存在C2外联，优先执行网络遏制。",
+        "command": "iptables -A OUTPUT -d 198.51.100.23 -j DROP",
+        "api_call": "POST /edr/isolate?asset=db-prod-01",
+        "effects": {
+          "containment": 0.35,
+          "assessment": 0.1,
+          "preservation": 0.0,
+          "eviction": 0.0,
+          "hardening": 0.0,
+          "restoration": 0.0
+        },
+        "target_assets": [
+          "db-prod-01"
+        ],
+        "capability_tags": [
+          "network_isolation"
+        ],
+        "sub_steps": [
+          {
+            "name": "封禁C2出口",
+            "cost_minutes": 5,
+            "mode": "serial"
+          },
+          {
+            "name": "应用EDR隔离",
+            "cost_minutes": 8,
+            "mode": "parallel",
+            "group": "contain"
+          }
+        ],
+        "parallel_group": "contain",
+        "id": "a1",
+        "name": "隔离 db-prod-01 的对外连接",
+        "stage": "containment",
+        "risk": 0.25,
+        "cost_minutes": 8.0,
+        "reason": "IOC显示存在C2外联，优先执行网络遏制。"
+      },
+      "ranked_actions": [
+        {
+          "action": {
+            "action_id": "a1",
+            "action_name": "隔离 db-prod-01 的对外连接",
+            "description": "阻断可疑外联，优先遏制攻击扩散。",
+            "target_stage": "containment",
+            "estimated_cost": 8.0,
+            "risk_penalty": 0.25,
+            "confidence": 0.84,
+            "reasoning": "IOC显示存在C2外联，优先执行网络遏制。",
+            "command": "iptables -A OUTPUT -d 198.51.100.23 -j DROP",
+            "api_call": "POST /edr/isolate?asset=db-prod-01",
+            "effects": {
+              "containment": 0.35,
+              "assessment": 0.1,
+              "preservation": 0.0,
+              "eviction": 0.0,
+              "hardening": 0.0,
+              "restoration": 0.0
+            },
+            "target_assets": [
+              "db-prod-01"
+            ],
+            "capability_tags": [
+              "network_isolation"
+            ],
+            "sub_steps": [
+              {
+                "name": "封禁C2出口",
+                "cost_minutes": 5,
+                "mode": "serial"
+              },
+              {
+                "name": "应用EDR隔离",
+                "cost_minutes": 8,
+                "mode": "parallel",
+                "group": "contain"
+              }
+            ],
+            "parallel_group": "contain",
+            "id": "a1",
+            "name": "隔离 db-prod-01 的对外连接",
+            "stage": "containment",
+            "risk": 0.25,
+            "cost_minutes": 8.0,
+            "reason": "IOC显示存在C2外联，优先执行网络遏制。"
+          },
+          "score": -22.306666666666672,
+          "projected_state": {
+            "containment": 0.66,
+            "assessment": 0.6467,
+            "preservation": 0.35,
+            "eviction": 0.51,
+            "hardening": 0.3967,
+            "restoration": 0.0833
+          },
+          "cumulative_cost": 46.333333333333336,
+          "progress_gain": 0.25276666666666664,
+          "projected_recovery_time": 46.333333333333336,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a1",
+            "a2",
+            "a3"
+          ],
+          "reason": "score=-22.307; progress_gain=0.253; cumulative_cost=46.33; risk_penalty=0.25.",
+          "validation_passed": true,
+          "rollout_results": [
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.68,
+                "preservation": 0.5,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.05
+              },
+              "cumulative_cost": 39.0,
+              "progress_gain": 0.25,
+              "projected_recovery_time": 39.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a2",
+                "a3"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.58,
+                "preservation": 0.05,
+                "eviction": 0.51,
+                "hardening": 0.73,
+                "restoration": 0.15
+              },
+              "cumulative_cost": 61.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 61.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a3",
+                "a4"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.68,
+                "preservation": 0.5,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.05
+              },
+              "cumulative_cost": 39.0,
+              "progress_gain": 0.25,
+              "projected_recovery_time": 39.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a3",
+                "a2"
+              ]
+            }
+          ]
+        },
+        {
+          "action": {
+            "action_id": "a2",
+            "action_name": "采集 db-prod-01 内存与磁盘镜像",
+            "description": "在清除前先进行证据保全，支持溯源和合规。",
+            "target_stage": "preservation",
+            "estimated_cost": 20.0,
+            "risk_penalty": 0.15,
+            "confidence": 0.79,
+            "reasoning": "当前取证保全维度较低，优先补齐证据链。",
+            "command": "velociraptor collect --target db-prod-01 --profile memory,disk",
+            "api_call": "POST /forensics/acquire?asset=db-prod-01",
+            "effects": {
+              "containment": 0.0,
+              "assessment": 0.1,
+              "preservation": 0.45,
+              "eviction": 0.0,
+              "hardening": 0.0,
+              "restoration": 0.0
+            },
+            "target_assets": [
+              "db-prod-01"
+            ],
+            "capability_tags": [
+              "forensics_collection"
+            ],
+            "sub_steps": [
+              {
+                "name": "内存采集",
+                "cost_minutes": 18,
+                "mode": "parallel",
+                "group": "forensics"
+              },
+              {
+                "name": "磁盘采集",
+                "cost_minutes": 20,
+                "mode": "parallel",
+                "group": "forensics"
+              }
+            ],
+            "parallel_group": "forensics",
+            "id": "a2",
+            "name": "采集 db-prod-01 内存与磁盘镜像",
+            "stage": "preservation",
+            "risk": 0.15,
+            "cost_minutes": 20.0,
+            "reason": "当前取证保全维度较低，优先补齐证据链。"
+          },
+          "score": -27.03,
+          "projected_state": {
+            "containment": 0.4767,
+            "assessment": 0.7133,
+            "preservation": 0.5,
+            "eviction": 0.2433,
+            "hardening": 0.3967,
+            "restoration": 0.3833
+          },
+          "cumulative_cost": 52.666666666666664,
+          "progress_gain": 0.26386666666666664,
+          "projected_recovery_time": 52.666666666666664,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a2",
+            "a1",
+            "a3"
+          ],
+          "reason": "score=-27.030; progress_gain=0.264; cumulative_cost=52.67; risk_penalty=0.15.",
+          "validation_passed": true,
+          "rollout_results": [
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.68,
+                "preservation": 0.5,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.05
+              },
+              "cumulative_cost": 39.0,
+              "progress_gain": 0.25,
+              "projected_recovery_time": 39.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a1",
+                "a3"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.56,
+                "assessment": 0.78,
+                "preservation": 0.5,
+                "eviction": 0.11,
+                "hardening": 0.23,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a5",
+                "a1"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.21,
+                "assessment": 0.68,
+                "preservation": 0.5,
+                "eviction": 0.11,
+                "hardening": 0.73,
+                "restoration": 0.6
+              },
+              "cumulative_cost": 74.0,
+              "progress_gain": 0.2833,
+              "projected_recovery_time": 74.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a5",
+                "a4"
+              ]
+            }
+          ]
+        },
+        {
+          "action": {
+            "action_id": "a5",
+            "action_name": "恢复 db-prod-01 关键服务并验证",
+            "description": "恢复业务服务并执行验证，推进恢复完成。",
+            "target_stage": "restoration",
+            "estimated_cost": 12.0,
+            "risk_penalty": 0.3,
+            "confidence": 0.72,
+            "reasoning": "在遏制与清除后执行业务恢复与验证。",
+            "command": "systemctl restart critical-service && systemctl status critical-service",
+            "api_call": "POST /ops/recover?asset=db-prod-01",
+            "effects": {
+              "containment": 0.0,
+              "assessment": 0.1,
+              "preservation": 0.0,
+              "eviction": 0.0,
+              "hardening": 0.0,
+              "restoration": 0.45
+            },
+            "target_assets": [
+              "db-prod-01"
+            ],
+            "capability_tags": [
+              "service_recovery"
+            ],
+            "sub_steps": [
+              {
+                "name": "服务重启",
+                "cost_minutes": 8,
+                "mode": "serial"
+              },
+              {
+                "name": "健康检查",
+                "cost_minutes": 4,
+                "mode": "serial"
+              }
+            ],
+            "parallel_group": "recovery",
+            "id": "a5",
+            "name": "恢复 db-prod-01 关键服务并验证",
+            "stage": "restoration",
+            "risk": 0.3,
+            "cost_minutes": 12.0,
+            "reason": "在遏制与清除后执行业务恢复与验证。"
+          },
+          "score": -27.776666666666664,
+          "projected_state": {
+            "containment": 0.51,
+            "assessment": 0.6467,
+            "preservation": 0.05,
+            "eviction": 0.3767,
+            "hardening": 0.5633,
+            "restoration": 0.5667
+          },
+          "cumulative_cost": 52.666666666666664,
+          "progress_gain": 0.2639,
+          "projected_recovery_time": 52.666666666666664,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a5",
+            "a1",
+            "a4"
+          ],
+          "reason": "score=-27.777; progress_gain=0.264; cumulative_cost=52.67; risk_penalty=0.30.",
+          "validation_passed": true,
+          "rollout_results": [
+            {
+              "projected_state": {
+                "containment": 0.56,
+                "assessment": 0.68,
+                "preservation": 0.05,
+                "eviction": 0.11,
+                "hardening": 0.73,
+                "restoration": 0.6
+              },
+              "cumulative_cost": 67.0,
+              "progress_gain": 0.2667,
+              "projected_recovery_time": 67.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a1",
+                "a4"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.31,
+                "assessment": 0.58,
+                "preservation": 0.05,
+                "eviction": 0.51,
+                "hardening": 0.73,
+                "restoration": 0.6
+              },
+              "cumulative_cost": 60.0,
+              "progress_gain": 0.275,
+              "projected_recovery_time": 60.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a3",
+                "a4"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.68,
+                "preservation": 0.05,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 31.0,
+              "progress_gain": 0.25,
+              "projected_recovery_time": 31.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a3",
+                "a1"
+              ]
+            }
+          ]
+        }
+      ],
+      "reasons": {
+        "隔离 db-prod-01 的对外连接": "Rank 1: score=-22.307, progress_gain=0.253, cost=46.3m, hallucination=False, validated=True.",
+        "采集 db-prod-01 内存与磁盘镜像": "Rank 2: score=-27.030, progress_gain=0.264, cost=52.7m, hallucination=False, validated=True.",
+        "恢复 db-prod-01 关键服务并验证": "Rank 3: score=-27.777, progress_gain=0.264, cost=52.7m, hallucination=False, validated=True."
+      },
+      "expected_recovery_effect": {
+        "current_state_progress": 0.188,
+        "projected_gain_best_action": 0.253,
+        "projected_recovery_time_minutes": 46.33,
+        "projected_state_best_action": {
+          "containment": 0.66,
+          "assessment": 0.6467,
+          "preservation": 0.35,
+          "eviction": 0.51,
+          "hardening": 0.3967,
+          "restoration": 0.0833
+        }
+      },
+      "risk_alerts": [
+        "恢复 db-prod-01 关键服务并验证: 风险=0.30"
+      ],
+      "executable": {
+        "shell": "iptables -A OUTPUT -d 198.51.100.23 -j DROP",
+        "api": "POST /edr/isolate?asset=db-prod-01"
+      },
+      "explainability": {
+        "state_explanation": "状态评估基于日志关键词匹配与IOC上下文。当前较高维度为: assessment=0.48, hardening=0.23。 当前短板维度为: preservation, restoration。已分析日志条数: 4。",
+        "rag_compressed_context": "CVE关键项: [{'cve': 'CVE-2024-3400', 'severity': 10.0, 'description': 'Palo Alto PAN-OS command injection', 'ttp': 'Persistence', 'evidence_id': 'EVID-0001', 'source_url': 'https://nvd.nist.gov/vuln/detail/CVE-2024-3400', 'source_type': 'sqlite_cve_db'}]. IOC关键项: [{'ioc': '198.51.100.23', 'threat': 'C2 IP', 'confidence': 0.91, 'evidence_id': 'EVID-0003', 'source_url': 'https://example.local/ioc/198.51.100.23', 'source_type': 'sqlite_ioc_db'}, {'ioc': 'malicious-updates.example', 'threat': 'Phishing domain', 'confidence': 0.87, 'evidence_id': 'EVID-0004', 'source_url': 'https://example.local/ioc/malicious-updates.example', 'source_type': 'sqlite_ioc_db'}, {'ioc': 'rclone.exe', 'threat': 'Potential exfiltration tooling', 'confidence': 0.73, 'evidence_id': 'EVID-0005', 'source_url': 'https://example.local/ioc/rclone.exe', 'source_type': 'sqlite_ioc_db'}]. 资产关键项: [{'asset': 'db-prod-01', 'criticality': 'high', 'owner': 'data-platform', 'evidence_id': 'EVID-0002', 'source_url': 'https://example.local/asset/db-prod-01', 'source_type': 'sqlite_asset_db'}, {'asset': 'web-prod-02', 'criticality': 'medium', 'owner': 'web-team', 'evidence_id': 'EVID-0006', 'source_url': 'https://example.local/asset/web-prod-02', 'source_type': 'sqlite_asset_db'}]. 规则关键项: [{'rule_id': 'RULE-SIGMA-001', 'rule_type': 'sigma', 'pattern': 'powershell -enc', 'ttp': 'attack.t1059.001', 'severity': 0.86, 'confidence': 0.8, 'source': 'builtin_sigma', 'version': 'v1', 'evidence_id': 'EVID-0007', 'source_url': 'https://attack.mitre.org/techniques/T1059/001/', 'source_type': 'sqlite_rule_db'}]. 联网情报: []. 证据映射: [{'evidence_id': 'EVID-0001', 'url': 'https://nvd.nist.gov/vuln/detail/CVE-2024-3400'}, {'evidence_id': 'EVID-0003', 'url': 'https://example.local/ioc/198.51.100.23'}, {'evidence_id': 'EVID-0004', 'url': 'https://example.local/ioc/malicious-updates.example'}, {'evidence_id': 'EVID-0005', 'url': 'https://example.local/ioc/rclone.exe'}, {'evidence_id': 'EVID-0002', 'url': 'https://example.local/asset/db-prod-01'}, {'evidence_id': 'EVID-0006', 'url': 'https://example.local/asset/web-prod-02'}, {'evidence_id': 'EVID-0007', 'url': 'https://attack.mitre.org/techniques/T1059/001/'}].",
+        "decision_policy": "Score = progress_gain * 100 - cumulative_cost - risk_penalty * 5",
+        "incident_summary": "IDS detects suspicious outbound traffic and privilege escalation on db-prod-01"
+      },
+      "planning_explanation": "State-driven rollout planning: ranked by progress_gain, cumulative_cost, risk_penalty and hallucination checks."
+    },
+    "audit": {
+      "audit_result": "pass",
+      "findings": [],
+      "candidate_actions": [
+        {
+          "action_id": "a1",
+          "action_name": "隔离 db-prod-01 的对外连接",
+          "description": "阻断可疑外联，优先遏制攻击扩散。",
+          "target_stage": "containment",
+          "estimated_cost": 8.0,
+          "risk_penalty": 0.25,
+          "confidence": 0.84,
+          "reasoning": "IOC显示存在C2外联，优先执行网络遏制。",
+          "command": "iptables -A OUTPUT -d 198.51.100.23 -j DROP",
+          "api_call": "POST /edr/isolate?asset=db-prod-01",
+          "effects": {
+            "containment": 0.35,
+            "assessment": 0.1,
+            "preservation": 0.0,
+            "eviction": 0.0,
+            "hardening": 0.0,
+            "restoration": 0.0
+          },
+          "target_assets": [
+            "db-prod-01"
+          ],
+          "capability_tags": [
+            "network_isolation"
+          ],
+          "sub_steps": [
+            {
+              "name": "封禁C2出口",
+              "cost_minutes": 5,
+              "mode": "serial"
+            },
+            {
+              "name": "应用EDR隔离",
+              "cost_minutes": 8,
+              "mode": "parallel",
+              "group": "contain"
+            }
+          ],
+          "parallel_group": "contain",
+          "id": "a1",
+          "name": "隔离 db-prod-01 的对外连接",
+          "stage": "containment",
+          "risk": 0.25,
+          "cost_minutes": 8.0,
+          "reason": "IOC显示存在C2外联，优先执行网络遏制。"
+        },
+        {
+          "action_id": "a2",
+          "action_name": "采集 db-prod-01 内存与磁盘镜像",
+          "description": "在清除前先进行证据保全，支持溯源和合规。",
+          "target_stage": "preservation",
+          "estimated_cost": 20.0,
+          "risk_penalty": 0.15,
+          "confidence": 0.79,
+          "reasoning": "当前取证保全维度较低，优先补齐证据链。",
+          "command": "velociraptor collect --target db-prod-01 --profile memory,disk",
+          "api_call": "POST /forensics/acquire?asset=db-prod-01",
+          "effects": {
+            "containment": 0.0,
+            "assessment": 0.1,
+            "preservation": 0.45,
+            "eviction": 0.0,
+            "hardening": 0.0,
+            "restoration": 0.0
+          },
+          "target_assets": [
+            "db-prod-01"
+          ],
+          "capability_tags": [
+            "forensics_collection"
+          ],
+          "sub_steps": [
+            {
+              "name": "内存采集",
+              "cost_minutes": 18,
+              "mode": "parallel",
+              "group": "forensics"
+            },
+            {
+              "name": "磁盘采集",
+              "cost_minutes": 20,
+              "mode": "parallel",
+              "group": "forensics"
+            }
+          ],
+          "parallel_group": "forensics",
+          "id": "a2",
+          "name": "采集 db-prod-01 内存与磁盘镜像",
+          "stage": "preservation",
+          "risk": 0.15,
+          "cost_minutes": 20.0,
+          "reason": "当前取证保全维度较低，优先补齐证据链。"
+        },
+        {
+          "action_id": "a5",
+          "action_name": "恢复 db-prod-01 关键服务并验证",
+          "description": "恢复业务服务并执行验证，推进恢复完成。",
+          "target_stage": "restoration",
+          "estimated_cost": 12.0,
+          "risk_penalty": 0.3,
+          "confidence": 0.72,
+          "reasoning": "在遏制与清除后执行业务恢复与验证。",
+          "command": "systemctl restart critical-service && systemctl status critical-service",
+          "api_call": "POST /ops/recover?asset=db-prod-01",
+          "effects": {
+            "containment": 0.0,
+            "assessment": 0.1,
+            "preservation": 0.0,
+            "eviction": 0.0,
+            "hardening": 0.0,
+            "restoration": 0.45
+          },
+          "target_assets": [
+            "db-prod-01"
+          ],
+          "capability_tags": [
+            "service_recovery"
+          ],
+          "sub_steps": [
+            {
+              "name": "服务重启",
+              "cost_minutes": 8,
+              "mode": "serial"
+            },
+            {
+              "name": "健康检查",
+              "cost_minutes": 4,
+              "mode": "serial"
+            }
+          ],
+          "parallel_group": "recovery",
+          "id": "a5",
+          "name": "恢复 db-prod-01 关键服务并验证",
+          "stage": "restoration",
+          "risk": 0.3,
+          "cost_minutes": 12.0,
+          "reason": "在遏制与清除后执行业务恢复与验证。"
+        }
+      ],
+      "state_predictions": [
+        {
+          "action_id": "a1",
+          "projected_state": {
+            "containment": 0.66,
+            "assessment": 0.6467,
+            "preservation": 0.35,
+            "eviction": 0.51,
+            "hardening": 0.3967,
+            "restoration": 0.0833
+          }
+        },
+        {
+          "action_id": "a2",
+          "projected_state": {
+            "containment": 0.4767,
+            "assessment": 0.7133,
+            "preservation": 0.5,
+            "eviction": 0.2433,
+            "hardening": 0.3967,
+            "restoration": 0.3833
+          }
+        },
+        {
+          "action_id": "a5",
+          "projected_state": {
+            "containment": 0.51,
+            "assessment": 0.6467,
+            "preservation": 0.05,
+            "eviction": 0.3767,
+            "hardening": 0.5633,
+            "restoration": 0.5667
+          }
+        }
+      ],
+      "rollout_results": [
+        {
+          "action_id": "a1",
+          "rollouts": [
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.68,
+                "preservation": 0.5,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.05
+              },
+              "cumulative_cost": 39.0,
+              "progress_gain": 0.25,
+              "projected_recovery_time": 39.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a2",
+                "a3"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.58,
+                "preservation": 0.05,
+                "eviction": 0.51,
+                "hardening": 0.73,
+                "restoration": 0.15
+              },
+              "cumulative_cost": 61.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 61.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a3",
+                "a4"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.68,
+                "preservation": 0.5,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.05
+              },
+              "cumulative_cost": 39.0,
+              "progress_gain": 0.25,
+              "projected_recovery_time": 39.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a3",
+                "a2"
+              ]
+            }
+          ]
+        },
+        {
+          "action_id": "a2",
+          "rollouts": [
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.68,
+                "preservation": 0.5,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.05
+              },
+              "cumulative_cost": 39.0,
+              "progress_gain": 0.25,
+              "projected_recovery_time": 39.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a1",
+                "a3"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.56,
+                "assessment": 0.78,
+                "preservation": 0.5,
+                "eviction": 0.11,
+                "hardening": 0.23,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a5",
+                "a1"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.21,
+                "assessment": 0.68,
+                "preservation": 0.5,
+                "eviction": 0.11,
+                "hardening": 0.73,
+                "restoration": 0.6
+              },
+              "cumulative_cost": 74.0,
+              "progress_gain": 0.2833,
+              "projected_recovery_time": 74.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a5",
+                "a4"
+              ]
+            }
+          ]
+        },
+        {
+          "action_id": "a5",
+          "rollouts": [
+            {
+              "projected_state": {
+                "containment": 0.56,
+                "assessment": 0.68,
+                "preservation": 0.05,
+                "eviction": 0.11,
+                "hardening": 0.73,
+                "restoration": 0.6
+              },
+              "cumulative_cost": 67.0,
+              "progress_gain": 0.2667,
+              "projected_recovery_time": 67.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a1",
+                "a4"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.31,
+                "assessment": 0.58,
+                "preservation": 0.05,
+                "eviction": 0.51,
+                "hardening": 0.73,
+                "restoration": 0.6
+              },
+              "cumulative_cost": 60.0,
+              "progress_gain": 0.275,
+              "projected_recovery_time": 60.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a3",
+                "a4"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.68,
+                "preservation": 0.05,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 31.0,
+              "progress_gain": 0.25,
+              "projected_recovery_time": 31.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a3",
+                "a1"
+              ]
+            }
+          ]
+        }
+      ],
+      "scores": [
+        {
+          "action_id": "a1",
+          "score": -22.306666666666672,
+          "validation_passed": true
+        },
+        {
+          "action_id": "a2",
+          "score": -27.03,
+          "validation_passed": true
+        },
+        {
+          "action_id": "a5",
+          "score": -27.776666666666664,
+          "validation_passed": true
+        }
+      ],
+      "best_action_selection_reason": "score=-22.307; progress_gain=0.253; cumulative_cost=46.33; risk_penalty=0.25.",
+      "filtered_actions": [],
+      "execution_guardrails": [
+        "若 audit_result=fail，禁止自动执行",
+        "优先执行 validation_passed 且 hallucination_flag=false 的动作",
+        "高风险动作需人工审批"
+      ],
+      "final_note": "state_progress=0.188; incident_assets=2; rag_context_len=2178",
+      "planning_trace": [
+        {
+          "action": {
+            "action_id": "a1",
+            "action_name": "隔离 db-prod-01 的对外连接",
+            "description": "阻断可疑外联，优先遏制攻击扩散。",
+            "target_stage": "containment",
+            "estimated_cost": 8.0,
+            "risk_penalty": 0.25,
+            "confidence": 0.84,
+            "reasoning": "IOC显示存在C2外联，优先执行网络遏制。",
+            "command": "iptables -A OUTPUT -d 198.51.100.23 -j DROP",
+            "api_call": "POST /edr/isolate?asset=db-prod-01",
+            "effects": {
+              "containment": 0.35,
+              "assessment": 0.1,
+              "preservation": 0.0,
+              "eviction": 0.0,
+              "hardening": 0.0,
+              "restoration": 0.0
+            },
+            "target_assets": [
+              "db-prod-01"
+            ],
+            "capability_tags": [
+              "network_isolation"
+            ],
+            "sub_steps": [
+              {
+                "name": "封禁C2出口",
+                "cost_minutes": 5,
+                "mode": "serial"
+              },
+              {
+                "name": "应用EDR隔离",
+                "cost_minutes": 8,
+                "mode": "parallel",
+                "group": "contain"
+              }
+            ],
+            "parallel_group": "contain",
+            "id": "a1",
+            "name": "隔离 db-prod-01 的对外连接",
+            "stage": "containment",
+            "risk": 0.25,
+            "cost_minutes": 8.0,
+            "reason": "IOC显示存在C2外联，优先执行网络遏制。"
+          },
+          "projected_state": {
+            "containment": 0.66,
+            "assessment": 0.6467,
+            "preservation": 0.35,
+            "eviction": 0.51,
+            "hardening": 0.3967,
+            "restoration": 0.0833
+          },
+          "rollout_results": [
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.68,
+                "preservation": 0.5,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.05
+              },
+              "cumulative_cost": 39.0,
+              "progress_gain": 0.25,
+              "projected_recovery_time": 39.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a2",
+                "a3"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.58,
+                "preservation": 0.05,
+                "eviction": 0.51,
+                "hardening": 0.73,
+                "restoration": 0.15
+              },
+              "cumulative_cost": 61.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 61.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a3",
+                "a4"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.68,
+                "preservation": 0.5,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.05
+              },
+              "cumulative_cost": 39.0,
+              "progress_gain": 0.25,
+              "projected_recovery_time": 39.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a3",
+                "a2"
+              ]
+            }
+          ],
+          "score": -22.306666666666672,
+          "hallucination_flag": false,
+          "validation_passed": true,
+          "selection_reason": "score=-22.307; progress_gain=0.253; cumulative_cost=46.33; risk_penalty=0.25."
+        },
+        {
+          "action": {
+            "action_id": "a2",
+            "action_name": "采集 db-prod-01 内存与磁盘镜像",
+            "description": "在清除前先进行证据保全，支持溯源和合规。",
+            "target_stage": "preservation",
+            "estimated_cost": 20.0,
+            "risk_penalty": 0.15,
+            "confidence": 0.79,
+            "reasoning": "当前取证保全维度较低，优先补齐证据链。",
+            "command": "velociraptor collect --target db-prod-01 --profile memory,disk",
+            "api_call": "POST /forensics/acquire?asset=db-prod-01",
+            "effects": {
+              "containment": 0.0,
+              "assessment": 0.1,
+              "preservation": 0.45,
+              "eviction": 0.0,
+              "hardening": 0.0,
+              "restoration": 0.0
+            },
+            "target_assets": [
+              "db-prod-01"
+            ],
+            "capability_tags": [
+              "forensics_collection"
+            ],
+            "sub_steps": [
+              {
+                "name": "内存采集",
+                "cost_minutes": 18,
+                "mode": "parallel",
+                "group": "forensics"
+              },
+              {
+                "name": "磁盘采集",
+                "cost_minutes": 20,
+                "mode": "parallel",
+                "group": "forensics"
+              }
+            ],
+            "parallel_group": "forensics",
+            "id": "a2",
+            "name": "采集 db-prod-01 内存与磁盘镜像",
+            "stage": "preservation",
+            "risk": 0.15,
+            "cost_minutes": 20.0,
+            "reason": "当前取证保全维度较低，优先补齐证据链。"
+          },
+          "projected_state": {
+            "containment": 0.4767,
+            "assessment": 0.7133,
+            "preservation": 0.5,
+            "eviction": 0.2433,
+            "hardening": 0.3967,
+            "restoration": 0.3833
+          },
+          "rollout_results": [
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.68,
+                "preservation": 0.5,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.05
+              },
+              "cumulative_cost": 39.0,
+              "progress_gain": 0.25,
+              "projected_recovery_time": 39.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a1",
+                "a3"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.56,
+                "assessment": 0.78,
+                "preservation": 0.5,
+                "eviction": 0.11,
+                "hardening": 0.23,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a5",
+                "a1"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.21,
+                "assessment": 0.68,
+                "preservation": 0.5,
+                "eviction": 0.11,
+                "hardening": 0.73,
+                "restoration": 0.6
+              },
+              "cumulative_cost": 74.0,
+              "progress_gain": 0.2833,
+              "projected_recovery_time": 74.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a5",
+                "a4"
+              ]
+            }
+          ],
+          "score": -27.03,
+          "hallucination_flag": false,
+          "validation_passed": true,
+          "selection_reason": "score=-27.030; progress_gain=0.264; cumulative_cost=52.67; risk_penalty=0.15."
+        },
+        {
+          "action": {
+            "action_id": "a5",
+            "action_name": "恢复 db-prod-01 关键服务并验证",
+            "description": "恢复业务服务并执行验证，推进恢复完成。",
+            "target_stage": "restoration",
+            "estimated_cost": 12.0,
+            "risk_penalty": 0.3,
+            "confidence": 0.72,
+            "reasoning": "在遏制与清除后执行业务恢复与验证。",
+            "command": "systemctl restart critical-service && systemctl status critical-service",
+            "api_call": "POST /ops/recover?asset=db-prod-01",
+            "effects": {
+              "containment": 0.0,
+              "assessment": 0.1,
+              "preservation": 0.0,
+              "eviction": 0.0,
+              "hardening": 0.0,
+              "restoration": 0.45
+            },
+            "target_assets": [
+              "db-prod-01"
+            ],
+            "capability_tags": [
+              "service_recovery"
+            ],
+            "sub_steps": [
+              {
+                "name": "服务重启",
+                "cost_minutes": 8,
+                "mode": "serial"
+              },
+              {
+                "name": "健康检查",
+                "cost_minutes": 4,
+                "mode": "serial"
+              }
+            ],
+            "parallel_group": "recovery",
+            "id": "a5",
+            "name": "恢复 db-prod-01 关键服务并验证",
+            "stage": "restoration",
+            "risk": 0.3,
+            "cost_minutes": 12.0,
+            "reason": "在遏制与清除后执行业务恢复与验证。"
+          },
+          "projected_state": {
+            "containment": 0.51,
+            "assessment": 0.6467,
+            "preservation": 0.05,
+            "eviction": 0.3767,
+            "hardening": 0.5633,
+            "restoration": 0.5667
+          },
+          "rollout_results": [
+            {
+              "projected_state": {
+                "containment": 0.56,
+                "assessment": 0.68,
+                "preservation": 0.05,
+                "eviction": 0.11,
+                "hardening": 0.73,
+                "restoration": 0.6
+              },
+              "cumulative_cost": 67.0,
+              "progress_gain": 0.2667,
+              "projected_recovery_time": 67.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a1",
+                "a4"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.31,
+                "assessment": 0.58,
+                "preservation": 0.05,
+                "eviction": 0.51,
+                "hardening": 0.73,
+                "restoration": 0.6
+              },
+              "cumulative_cost": 60.0,
+              "progress_gain": 0.275,
+              "projected_recovery_time": 60.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a3",
+                "a4"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.66,
+                "assessment": 0.68,
+                "preservation": 0.05,
+                "eviction": 0.51,
+                "hardening": 0.23,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 31.0,
+              "progress_gain": 0.25,
+              "projected_recovery_time": 31.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a3",
+                "a1"
+              ]
+            }
+          ],
+          "score": -27.776666666666664,
+          "hallucination_flag": false,
+          "validation_passed": true,
+          "selection_reason": "score=-27.777; progress_gain=0.264; cumulative_cost=52.67; risk_penalty=0.30."
+        }
+      ]
+    },
+    "execution_allowed": true,
+    "model_runtime": {
+      "provider": "qwen",
+      "model_name": "qwen-plus",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+    },
+    "skill_runtime": {
+      "loaded_skills": [
+        "soc-decision-auditor",
+        "soc-incident-triage",
+        "soc-rag-intel-analyst",
+        "soc-response-planner"
+      ],
+      "execution_trace": [
+        {
+          "stage": "triage",
+          "skill": "soc-incident-triage",
+          "status": "executed",
+          "elapsed_ms": "0"
+        },
+        {
+          "stage": "rag",
+          "skill": "soc-rag-intel-analyst",
+          "status": "executed",
+          "elapsed_ms": "1774"
+        },
+        {
+          "stage": "triage",
+          "skill": "soc-incident-triage",
+          "status": "executed",
+          "elapsed_ms": "0"
+        },
+        {
+          "stage": "planning",
+          "skill": "soc-response-planner",
+          "status": "executed",
+          "elapsed_ms": "49395"
+        },
+        {
+          "stage": "audit",
+          "skill": "soc-decision-auditor",
+          "status": "executed",
+          "elapsed_ms": "0"
+        }
+      ]
+    },
+    "multi_agent": {
+      "enabled": false,
+      "converged": false,
+      "selected_action_id": "a1",
+      "rounds": [],
+      "reason": "state_driven_planning",
+      "elapsed_ms": 0
+    },
+    "rule_generation": {
+      "enabled": true,
+      "reason": "ok",
+      "provider": "qwen",
+      "results": [
+        {
+          "cve_id": "CVE-2024-3400",
+          "candidate_count": 5,
+          "max_iterations": 5,
+          "candidates": [
+            {
+              "candidate_id": "cand-3",
+              "temperature": 0.8,
+              "iterations": 2,
+              "score": 0.9785,
+              "rule": {
+                "rule_id": "RULE-DBPROD-001",
+                "rule_type": "detection",
+                "title": "High-fidelity multi-stage detection of CVE-2024-3400 post-exploitation: credential dumping, rclone-based exfiltration, and C2 traffic on critical DB host",
+                "pattern": "(process_name == 'rclone.exe' AND parent_process_name NOT IN ('explorer.exe', 'cmd.exe', 'powershell.exe', 'wmic.exe', 'mshta.exe', 'cscript.exe', 'wscript.exe') AND process_cmdline CONTAINS '--config' AND (process_cmdline CONTAINS 's3:' OR process_cmdline CONTAINS 'http:' OR process_cmdline CONTAINS 'ftp:')) OR (dst_ip == '198.51.100.23' AND dst_port == 443 AND bytes_out > 10240) OR (event_id == 10 AND log_source == 'Sysmon' AND (target_image CONTAINS '\\\\lsass.exe' OR target_image CONTAINS '\\system32\\\\lsass.exe') AND subject_logon_id != '0x3e7') OR (dns_query == 'malicious-updates.example' AND dns_response_code == 'NOERROR' AND dns_record_type == 'A')",
+                "logic": "ANY of the following *must occur within a strict 3-minute sliding window on host 'db-prod-01'*, AND at least two distinct conditions must be observed (i.e., logical AND of ≥2 triggers required for alert): (1) rclone.exe with suspicious cmdline (exfil config + remote backend), (2) high-volume HTTPS egress to confirmed C2 IP, (3) Sysmon EID 10 targeting LSASS with non-system logon ID (indicating lateral or elevated dumping), or (4) authoritative A-record resolution of malicious domain — all correlated by host, time, and session context.",
+                "ttp": "attack.t1059.001, attack.t1003.001, attack.t1071.001, attack.t1566.001",
+                "severity": 0.99,
+                "confidence": 0.96,
+                "rationale": "Optimized to reduce false positives by: (a) tightening rclone detection with behavioral signals (backend protocol in cmdline + --config flag), excluding common benign parents beyond base shell; (b) requiring meaningful egress volume (>10KB) to distinguish C2 beaconing from noise; (c) constraining Sysmon EID 10 to LSASS targeting *and* non-System logon ID (filtering legitimate admin dumps); (d) validating DNS resolution success and record type to avoid passive DNS noise. All conditions are temporally and contextually bound to 'db-prod-01' with a stricter 3-min correlation window and mandatory multi-condition trigger (≥2), aligning precisely with the known TTP chain of CVE-2024-3400 exploitation—unauthenticated RCE on PAN-OS followed by credential theft, tool deployment, and data exfiltration. Confidence and severity increased due to reduced ambiguity and higher signal-to-noise ratio.",
+                "source": "rule_generation_engine",
+                "version": "iter-2"
+              }
+            },
+            {
+              "candidate_id": "cand-2",
+              "temperature": 0.75,
+              "iterations": 2,
+              "score": 0.9785,
+              "rule": {
+                "rule_id": "RULE-DBPROD-001",
+                "rule_type": "detection",
+                "title": "High-confidence CVE-2024-3400 exploitation chain: Unauthenticated PAN-OS RCE → lateral movement to db-prod-01 → credential dumping + rclone exfiltration + C2 beaconing",
+                "pattern": "EDR alert: rclone.exe spawned by non-whitelisted parent AND Sysmon Event ID 10 (LSASS memory access) AND ≥3 outbound TLS 1.2/1.3 connections to 198.51.100.23:443 AND DNS query for 'malicious-updates.example' AND asset 'db-prod-01' tagged with 'panos_vuln_cve-2024-3400:true' OR 'panos_version:<10.2.5-h3'",
+                "logic": "ALL of the following must be observed within a 3-minute sliding window:\n(1) rclone.exe process spawn where parent process name NOT in ['svchost.exe', 'lsass.exe', 'services.exe', 'wininit.exe', 'explorer.exe'] AND parent process integrity level ≠ 'System';\n(2) Sysmon Event ID 10 with TargetImage ending in '\\lsass.exe' AND Operation='ProcessAccess' AND GrantedAccess includes '0x1010' (PROCESS_QUERY_INFORMATION | PROCESS_VM_READ);\n(3) ≥3 distinct outbound TLS handshakes (detected via firewall or network sensor) to 198.51.100.23:443, with SNI field matching 'malicious-updates.example' OR empty SNI + JA3 hash matching known Cobalt Strike profile;\n(4) DNS query for 'malicious-updates.example' from same source host (db-prod-01) within ±60s;\n(5) Asset context confirms db-prod-01 is *directly exposed* to a vulnerable PAN-OS firewall (evidence: 'exposed_to_panos:true' tag AND 'panos_version' attribute < '10.2.5-h3' OR 'panos_cve_2024_3400_status:affected').",
+                "ttp": "attack.t1059.001,attack.t1003.001,attack.t1071.001,attack.t1566.001",
+                "severity": 0.99,
+                "confidence": 0.96,
+                "rationale": "Optimized to reduce false positives by replacing vague terms ('unknown parent', 'IDS anomaly score') with precise, observable conditions: (a) whitelisted parent binaries + integrity level check eliminates benign admin/scripted spawns; (b) LSASS access pattern now requires explicit granted access flags and target image path — directly mapping to T1003.001; (c) TLS connection requirement now includes SNI or JA3 validation to confirm malicious intent, not just IP reachability; (d) DNS and C2 correlation tightened to same host + narrow time window; (e) CVE linkage upgraded from passive 'inferred via tagging' to active exposure validation — requiring proof that db-prod-01 is *reachable through* a confirmed CVE-2024-3400-vulnerable PAN-OS device (not merely co-located). This enforces causal fidelity to the exploit vector while preserving detection sensitivity for real-world campaigns.",
+                "source": "rule_generation_engine",
+                "version": "iter-2"
+              }
+            },
+            {
+              "candidate_id": "cand-1",
+              "temperature": 0.7,
+              "iterations": 2,
+              "score": 0.975,
+              "rule": {
+                "rule_id": "RULE-DBPROD-001",
+                "rule_type": "detection",
+                "title": "High-fidelity multi-stage detection of CVE-2024-3400 exploitation: unauthenticated command injection leading to rclone-based exfiltration, credential dumping, and C2 communication",
+                "pattern": "process_name == 'rclone.exe' AND (parent_process_name IS UNKNOWN OR parent_process_name NOT IN ['explorer.exe', 'cmd.exe', 'powershell.exe', 'svchost.exe', 'services.exe', 'lsass.exe']) AND (dst_ip IN ['198.51.100.23'] OR domain IN ['malicious-updates.example']) AND sysmon_event_id == 10 AND process_cmdline CONTAINS '--config' AND (process_start_time - prev_sysmon_eid_10_time < 300000 OR prev_sysmon_eid_3_time.dst_port == 443)",
+                "logic": "Trigger only when: (1) rclone.exe is executed with config file usage (indicating intentional credential reuse), (2) spawned from a non-standard parent (excluding common system/services processes), (3) concurrent or temporally proximate (≤5 min) Sysmon Event ID 10 (LSASS memory access), (4) AND at least one confirmed malicious C2 indicator (IP or domain) is observed — prioritizing temporal correlation and behavioral context over isolated IOCs to reduce false positives while preserving detection of true CVE-2024-3400 post-exploitation chains.",
+                "ttp": "attack.t1566.001,attack.t1059.001,attack.t1003.001,attack.t1071.001,attack.t1021.002",
+                "severity": 0.98,
+                "confidence": 0.96,
+                "rationale": "Optimized to improve detectability and reduce false positives by adding behavioral constraints: (a) 'process_cmdline CONTAINS --config' confirms intentional rclone configuration use (common in exfiltration setups); (b) expanded parent exclusion list includes 'services.exe' and 'lsass.exe' to prevent false triggers from legitimate service-hosted or LSASS-related activity; (c) temporal correlation logic (≤5 min window between rclone start and prior EID 10 *or* EID 3 to port 443) enforces causal plausibility of post-exploitation flow; (d) retains all original high-confidence IOCs but grounds them in time-bound, multi-event context — aligning precisely with observed CVE-2024-3400 TTPs (unauthenticated RCE → payload drop → credential theft → data exfiltration via rclone → C2). This preserves fidelity to the NVD description (PAN-OS command injection enabling persistent lateral movement) while eliminating standalone rclone executions lacking corroborating evidence.",
+                "source": "rule_generation_engine",
+                "version": "iter-2"
+              }
+            },
+            {
+              "candidate_id": "cand-4",
+              "temperature": 0.85,
+              "iterations": 2,
+              "score": 0.9705,
+              "rule": {
+                "rule_id": "RULE-DBPROD-001",
+                "rule_type": "detection",
+                "title": "High-fidelity multi-source detection of CVE-2024-3400 post-exploitation: rclone.exe execution + credential dumping + C2 traffic to confirmed malicious infrastructure",
+                "pattern": "EDR alert: rclone.exe spawned by non-whitelisted parent process (e.g., not 'panosd', 'bash', or 'sh') AND Sysmon Event ID 10 with TargetLogonId != 0x3e7 (non-system) AND firewall outbound connection to 198.51.100.23:443 within 5 min AND DNS query for 'malicious-updates.example' OR IDS anomaly score ≥ 85 (normalized 0–100 scale)",
+                "logic": "ALL_OF: (process_name == 'rclone.exe' AND parent_process_name NOT IN ['panosd', 'bash', 'sh', 'systemd', 'init']) AND (sysmon_event_id == 10 AND target_logon_id != '0x3e7') AND (dst_ip == '198.51.100.23' AND dst_port == 443 AND time_window <= 300s) AND (dns_query == 'malicious-updates.example' OR (anomaly_score >= 85 AND anomaly_score <= 100))",
+                "ttp": "attack.t1059.001, attack.t1003.001, attack.t1071.001, attack.t1566.001",
+                "severity": 0.98,
+                "confidence": 0.95,
+                "rationale": "Optimized to reduce false positives by replacing 'unknown parent process' (prone to logging gaps) with explicit non-whitelisted parent filtering aligned with PAN-OS runtime context; tightened Sysmon Event ID 10 logic to exclude SYSTEM logon (0x3e7), eliminating noise from legitimate admin activity; added strict time-window constraint (≤300s) between credential dumping and C2 traffic to enforce causal plausibility; normalized IDS anomaly score to 0–100 scale with concrete threshold (≥85) for reproducibility; retained all high-confidence IOCs (198.51.100.23, malicious-updates.example) directly mapped to CVE-2024-3400 exploitation chains per NVD and vendor advisories. All changes preserve semantic fidelity to the vulnerability’s observed TTPs: command injection → persistence → credential access → data exfiltration via rclone → C2.",
+                "source": "rule_generation_engine",
+                "version": "iter-2"
+              }
+            },
+            {
+              "candidate_id": "cand-5",
+              "temperature": 0.9,
+              "iterations": 2,
+              "score": 0.9625,
+              "rule": {
+                "rule_id": "RULE-DBPROD-001",
+                "rule_type": "detection",
+                "title": "CVE-2024-3400 Post-Exploitation: rclone.exe + Credential Dumping + C2 Traffic to Known Malicious Infrastructure",
+                "pattern": "(process_name == 'rclone.exe') AND (sysmon_event_id == 10) AND (dst_ip IN ['198.51.100.23']) AND (dns_query CONTAINS 'malicious-updates.example') AND (parent_process_name NOT IN ['svchost.exe', 'explorer.exe', 'wmiprvse.exe', 'powershell.exe', 'cmd.exe'])",
+                "logic": "Alert when rclone.exe is executed *without a trusted parent process*, coinciding with Sysmon Event ID 10 (credential dumping), outbound connection to confirmed malicious C2 IP (198.51.100.23), and DNS resolution of known phishing domain ('malicious-updates.example'). Excludes common benign parents to reduce false positives while preserving detection fidelity for CVE-2024-3400’s observed post-exploitation chain — where initial command injection leads to untrusted process spawning, credential theft, and exfiltration via abused tooling.",
+                "ttp": "attack.t1059.001,attack.t1003.001,attack.t1071.001,attack.t1566.001",
+                "severity": 0.97,
+                "confidence": 0.94,
+                "rationale": "Enhanced detectability via explicit parent-process exclusion (reducing misattribution to admin/scripted use), aligned with MITRE ATT&CK TTPs and RAG-confirmed CVE-2024-3400 exploitation pattern. All IOCs are high-confidence (C2 IP: 0.91, domain: 0.87, rclone abuse: 0.73 — now contextualized by parent anomaly). Removes over-reliance on single DNS substring match by coupling it with behavioral context (untrusted parent + credential dump), improving precision without sacrificing recall for real-world exploitation telemetry.",
+                "source": "rule_generation_engine",
+                "version": "iter-2"
+              }
+            }
+          ],
+          "best_rule": {
+            "rule_id": "RULE-DBPROD-001",
+            "rule_type": "detection",
+            "title": "High-fidelity multi-stage detection of CVE-2024-3400 post-exploitation: credential dumping, rclone-based exfiltration, and C2 traffic on critical DB host",
+            "pattern": "(process_name == 'rclone.exe' AND parent_process_name NOT IN ('explorer.exe', 'cmd.exe', 'powershell.exe', 'wmic.exe', 'mshta.exe', 'cscript.exe', 'wscript.exe') AND process_cmdline CONTAINS '--config' AND (process_cmdline CONTAINS 's3:' OR process_cmdline CONTAINS 'http:' OR process_cmdline CONTAINS 'ftp:')) OR (dst_ip == '198.51.100.23' AND dst_port == 443 AND bytes_out > 10240) OR (event_id == 10 AND log_source == 'Sysmon' AND (target_image CONTAINS '\\\\lsass.exe' OR target_image CONTAINS '\\system32\\\\lsass.exe') AND subject_logon_id != '0x3e7') OR (dns_query == 'malicious-updates.example' AND dns_response_code == 'NOERROR' AND dns_record_type == 'A')",
+            "logic": "ANY of the following *must occur within a strict 3-minute sliding window on host 'db-prod-01'*, AND at least two distinct conditions must be observed (i.e., logical AND of ≥2 triggers required for alert): (1) rclone.exe with suspicious cmdline (exfil config + remote backend), (2) high-volume HTTPS egress to confirmed C2 IP, (3) Sysmon EID 10 targeting LSASS with non-system logon ID (indicating lateral or elevated dumping), or (4) authoritative A-record resolution of malicious domain — all correlated by host, time, and session context.",
+            "ttp": "attack.t1059.001, attack.t1003.001, attack.t1071.001, attack.t1566.001",
+            "severity": 0.99,
+            "confidence": 0.96,
+            "rationale": "Optimized to reduce false positives by: (a) tightening rclone detection with behavioral signals (backend protocol in cmdline + --config flag), excluding common benign parents beyond base shell; (b) requiring meaningful egress volume (>10KB) to distinguish C2 beaconing from noise; (c) constraining Sysmon EID 10 to LSASS targeting *and* non-System logon ID (filtering legitimate admin dumps); (d) validating DNS resolution success and record type to avoid passive DNS noise. All conditions are temporally and contextually bound to 'db-prod-01' with a stricter 3-min correlation window and mandatory multi-condition trigger (≥2), aligning precisely with the known TTP chain of CVE-2024-3400 exploitation—unauthenticated RCE on PAN-OS followed by credential theft, tool deployment, and data exfiltration. Confidence and severity increased due to reduced ambiguity and higher signal-to-noise ratio.",
+            "source": "rule_generation_engine",
+            "version": "iter-2"
+          }
+        }
+      ],
+      "elapsed_ms": 29302
+    },
+    "input_meta": {
+      "source": "json",
+      "path": "/home/kali/SentriX/backend/data/sample_incident.json"
+    }
+  }
+}

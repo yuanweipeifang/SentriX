@@ -1,0 +1,17 @@
+{
+  "event_summary": "IDS detects suspicious outbound traffic and privilege escalation on db-prod-01",
+  "ioc": {
+    "ip": ["198.51.100.23"],
+    "domain": ["malicious-updates.example"],
+    "cve": ["CVE-2024-3400"],
+    "process": ["rclone.exe"]
+  },
+  "affected_assets": ["db-prod-01", "web-prod-02"],
+  "raw_logs": [
+    "EDR alert: rclone.exe spawned by unknown parent process",
+    "Firewall detected repeated outbound connections to 198.51.100.23:443",
+    "Sysmon Event ID 10 indicates credential dumping pattern",
+    "IDS alert: anomaly score above threshold and suspicious DNS requests"
+  ],
+  "timestamp": "2026-04-12T08:30:00Z"
+}

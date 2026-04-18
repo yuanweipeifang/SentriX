@@ -1,0 +1,26 @@
+[
+  {
+    "rule_id": "RULE-CUSTOM-SSH-BRUTE-001",
+    "rule_type": "behavior",
+    "title": "SSH Brute Force Burst",
+    "pattern": "failed password for invalid user",
+    "ttp": "attack.t1110",
+    "severity": 0.78,
+    "confidence": 0.82,
+    "source": "custom_min_rules",
+    "version": "v1",
+    "source_url": "https://attack.mitre.org/techniques/T1110/"
+  },
+  {
+    "rule_id": "RULE-CUSTOM-PSENC-001",
+    "rule_type": "sigma",
+    "title": "PowerShell Encoded Execution",
+    "pattern": "powershell -enc",
+    "ttp": "attack.t1059.001",
+    "severity": 0.88,
+    "confidence": 0.86,
+    "source": "custom_min_rules",
+    "version": "v1",
+    "source_url": "https://attack.mitre.org/techniques/T1059/001/"
+  }
+]

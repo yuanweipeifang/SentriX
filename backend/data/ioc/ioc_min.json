@@ -1,0 +1,20 @@
+[
+  {
+    "ioc": "198.51.100.23",
+    "threat": "C2 IP",
+    "confidence": 0.91,
+    "source_url": "https://example.local/ioc/198.51.100.23"
+  },
+  {
+    "ioc": "malicious-updates.example",
+    "threat": "Phishing domain",
+    "confidence": 0.87,
+    "source_url": "https://example.local/ioc/malicious-updates.example"
+  },
+  {
+    "ioc": "rclone.exe",
+    "threat": "Potential exfiltration tooling",
+    "confidence": 0.73,
+    "source_url": "https://example.local/ioc/rclone.exe"
+  }
+]

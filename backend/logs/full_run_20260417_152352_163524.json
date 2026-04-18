@@ -1,0 +1,2049 @@
+{
+  "incident_meta": {
+    "source": "dataset",
+    "sample_index": 0,
+    "dataset_size": 3,
+    "answer_preview": "I note that in the logs, the `api-backend` host (10.128.0.30) retrieved container images from Google Artifact Registry over HTTPS using a self-signed staging certificate issued by Let's Encrypt. Since",
+    "path": "/home/kali/SentriX/backend/dataset/incident_examples_min.json"
+  },
+  "rag_summary": {
+    "summary": "RAG检索完成（SQLite数据库检索 + 本地补全 + 规则特征）",
+    "matched_iocs": 0,
+    "matched_cves": 0,
+    "matched_rules": 0,
+    "similar_cases": 3
+  },
+  "state_snapshot": {
+    "containment": 0.15000000000000002,
+    "assessment": 0.15000000000000002,
+    "preservation": 0.05,
+    "eviction": 0.05,
+    "hardening": 0.05,
+    "restoration": 0.05,
+    "explanation": "状态评估基于日志关键词匹配与IOC上下文。当前较高维度为: containment=0.15, assessment=0.15。 当前短板维度为: preservation, eviction。已分析日志条数: 13。",
+    "recovery": 0.05
+  },
+  "candidates_raw": [
+    {
+      "action_id": "a2",
+      "action_name": "采集 api-backend 内存与磁盘镜像",
+      "description": "在清除前先进行证据保全，支持溯源和合规。",
+      "target_stage": "preservation",
+      "estimated_cost": 20.0,
+      "risk_penalty": 0.15,
+      "confidence": 0.79,
+      "reasoning": "当前取证保全维度较低，优先补齐证据链。",
+      "command": "velociraptor collect --target api-backend --profile memory,disk",
+      "api_call": "POST /forensics/acquire?asset=api-backend",
+      "effects": {
+        "containment": 0.0,
+        "assessment": 0.1,
+        "preservation": 0.45,
+        "eviction": 0.0,
+        "hardening": 0.0,
+        "restoration": 0.0
+      },
+      "target_assets": [
+        "api-backend"
+      ],
+      "capability_tags": [
+        "forensics_collection"
+      ],
+      "sub_steps": [
+        {
+          "name": "内存采集",
+          "cost_minutes": 18,
+          "mode": "parallel",
+          "group": "forensics"
+        },
+        {
+          "name": "磁盘采集",
+          "cost_minutes": 20,
+          "mode": "parallel",
+          "group": "forensics"
+        }
+      ],
+      "parallel_group": "forensics",
+      "id": "a2",
+      "name": "采集 api-backend 内存与磁盘镜像",
+      "stage": "preservation",
+      "risk": 0.15,
+      "cost_minutes": 20.0,
+      "reason": "当前取证保全维度较低，优先补齐证据链。"
+    },
+    {
+      "action_id": "a1",
+      "action_name": "隔离 api-backend 的对外连接",
+      "description": "阻断可疑外联，优先遏制攻击扩散。",
+      "target_stage": "containment",
+      "estimated_cost": 8.0,
+      "risk_penalty": 0.25,
+      "confidence": 0.84,
+      "reasoning": "IOC显示存在C2外联，优先执行网络遏制。",
+      "command": "iptables -A OUTPUT -d 10.128.0.0 -j DROP",
+      "api_call": "POST /edr/isolate?asset=api-backend",
+      "effects": {
+        "containment": 0.35,
+        "assessment": 0.1,
+        "preservation": 0.0,
+        "eviction": 0.0,
+        "hardening": 0.0,
+        "restoration": 0.0
+      },
+      "target_assets": [
+        "api-backend"
+      ],
+      "capability_tags": [
+        "network_isolation"
+      ],
+      "sub_steps": [
+        {
+          "name": "封禁C2出口",
+          "cost_minutes": 5,
+          "mode": "serial"
+        },
+        {
+          "name": "应用EDR隔离",
+          "cost_minutes": 8,
+          "mode": "parallel",
+          "group": "contain"
+        }
+      ],
+      "parallel_group": "contain",
+      "id": "a1",
+      "name": "隔离 api-backend 的对外连接",
+      "stage": "containment",
+      "risk": 0.25,
+      "cost_minutes": 8.0,
+      "reason": "IOC显示存在C2外联，优先执行网络遏制。"
+    },
+    {
+      "action_id": "a5",
+      "action_name": "恢复 api-backend 关键服务并验证",
+      "description": "恢复业务服务并执行验证，推进恢复完成。",
+      "target_stage": "restoration",
+      "estimated_cost": 12.0,
+      "risk_penalty": 0.3,
+      "confidence": 0.72,
+      "reasoning": "在遏制与清除后执行业务恢复与验证。",
+      "command": "systemctl restart critical-service && systemctl status critical-service",
+      "api_call": "POST /ops/recover?asset=api-backend",
+      "effects": {
+        "containment": 0.0,
+        "assessment": 0.1,
+        "preservation": 0.0,
+        "eviction": 0.0,
+        "hardening": 0.0,
+        "restoration": 0.45
+      },
+      "target_assets": [
+        "api-backend"
+      ],
+      "capability_tags": [
+        "service_recovery"
+      ],
+      "sub_steps": [
+        {
+          "name": "服务重启",
+          "cost_minutes": 8,
+          "mode": "serial"
+        },
+        {
+          "name": "健康检查",
+          "cost_minutes": 4,
+          "mode": "serial"
+        }
+      ],
+      "parallel_group": "recovery",
+      "id": "a5",
+      "name": "恢复 api-backend 关键服务并验证",
+      "stage": "restoration",
+      "risk": 0.3,
+      "cost_minutes": 12.0,
+      "reason": "在遏制与清除后执行业务恢复与验证。"
+    }
+  ],
+  "filter_audit": [
+    {
+      "action_id": "a3",
+      "action_name": "终止进程 unknown.exe 并隔离样本",
+      "reason": "动作与incident上下文不一致，已过滤。"
+    },
+    {
+      "action_id": "a4",
+      "action_name": "修复漏洞 CVE-unknown 并更新基线",
+      "reason": "动作与incident上下文不一致，已过滤。"
+    }
+  ],
+  "planning_trace": [
+    {
+      "action": {
+        "action_id": "a2",
+        "action_name": "采集 api-backend 内存与磁盘镜像",
+        "description": "在清除前先进行证据保全，支持溯源和合规。",
+        "target_stage": "preservation",
+        "estimated_cost": 20.0,
+        "risk_penalty": 0.15,
+        "confidence": 0.79,
+        "reasoning": "当前取证保全维度较低，优先补齐证据链。",
+        "command": "velociraptor collect --target api-backend --profile memory,disk",
+        "api_call": "POST /forensics/acquire?asset=api-backend",
+        "effects": {
+          "containment": 0.0,
+          "assessment": 0.1,
+          "preservation": 0.45,
+          "eviction": 0.0,
+          "hardening": 0.0,
+          "restoration": 0.0
+        },
+        "target_assets": [
+          "api-backend"
+        ],
+        "capability_tags": [
+          "forensics_collection"
+        ],
+        "sub_steps": [
+          {
+            "name": "内存采集",
+            "cost_minutes": 18,
+            "mode": "parallel",
+            "group": "forensics"
+          },
+          {
+            "name": "磁盘采集",
+            "cost_minutes": 20,
+            "mode": "parallel",
+            "group": "forensics"
+          }
+        ],
+        "parallel_group": "forensics",
+        "id": "a2",
+        "name": "采集 api-backend 内存与磁盘镜像",
+        "stage": "preservation",
+        "risk": 0.15,
+        "cost_minutes": 20.0,
+        "reason": "当前取证保全维度较低，优先补齐证据链。"
+      },
+      "projected_state": {
+        "containment": 0.5,
+        "assessment": 0.45,
+        "preservation": 0.5,
+        "eviction": 0.05,
+        "hardening": 0.05,
+        "restoration": 0.5
+      },
+      "rollout_results": [
+        {
+          "projected_state": {
+            "containment": 0.5,
+            "assessment": 0.45,
+            "preservation": 0.5,
+            "eviction": 0.05,
+            "hardening": 0.05,
+            "restoration": 0.5
+          },
+          "cumulative_cost": 45.0,
+          "progress_gain": 0.2583,
+          "projected_recovery_time": 45.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a2",
+            "a5",
+            "a1"
+          ]
+        },
+        {
+          "projected_state": {
+            "containment": 0.5,
+            "assessment": 0.45,
+            "preservation": 0.5,
+            "eviction": 0.05,
+            "hardening": 0.05,
+            "restoration": 0.5
+          },
+          "cumulative_cost": 45.0,
+          "progress_gain": 0.2583,
+          "projected_recovery_time": 45.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a2",
+            "a1",
+            "a5"
+          ]
+        },
+        {
+          "projected_state": {
+            "containment": 0.5,
+            "assessment": 0.45,
+            "preservation": 0.5,
+            "eviction": 0.05,
+            "hardening": 0.05,
+            "restoration": 0.5
+          },
+          "cumulative_cost": 45.0,
+          "progress_gain": 0.2583,
+          "projected_recovery_time": 45.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a2",
+            "a1",
+            "a5"
+          ]
+        }
+      ],
+      "score": -19.92,
+      "hallucination_flag": false,
+      "validation_passed": true,
+      "selection_reason": "score=-19.920; progress_gain=0.258; cumulative_cost=45.00; risk_penalty=0.15."
+    },
+    {
+      "action": {
+        "action_id": "a1",
+        "action_name": "隔离 api-backend 的对外连接",
+        "description": "阻断可疑外联，优先遏制攻击扩散。",
+        "target_stage": "containment",
+        "estimated_cost": 8.0,
+        "risk_penalty": 0.25,
+        "confidence": 0.84,
+        "reasoning": "IOC显示存在C2外联，优先执行网络遏制。",
+        "command": "iptables -A OUTPUT -d 10.128.0.0 -j DROP",
+        "api_call": "POST /edr/isolate?asset=api-backend",
+        "effects": {
+          "containment": 0.35,
+          "assessment": 0.1,
+          "preservation": 0.0,
+          "eviction": 0.0,
+          "hardening": 0.0,
+          "restoration": 0.0
+        },
+        "target_assets": [
+          "api-backend"
+        ],
+        "capability_tags": [
+          "network_isolation"
+        ],
+        "sub_steps": [
+          {
+            "name": "封禁C2出口",
+            "cost_minutes": 5,
+            "mode": "serial"
+          },
+          {
+            "name": "应用EDR隔离",
+            "cost_minutes": 8,
+            "mode": "parallel",
+            "group": "contain"
+          }
+        ],
+        "parallel_group": "contain",
+        "id": "a1",
+        "name": "隔离 api-backend 的对外连接",
+        "stage": "containment",
+        "risk": 0.25,
+        "cost_minutes": 8.0,
+        "reason": "IOC显示存在C2外联，优先执行网络遏制。"
+      },
+      "projected_state": {
+        "containment": 0.5,
+        "assessment": 0.45,
+        "preservation": 0.5,
+        "eviction": 0.05,
+        "hardening": 0.05,
+        "restoration": 0.5
+      },
+      "rollout_results": [
+        {
+          "projected_state": {
+            "containment": 0.5,
+            "assessment": 0.45,
+            "preservation": 0.5,
+            "eviction": 0.05,
+            "hardening": 0.05,
+            "restoration": 0.5
+          },
+          "cumulative_cost": 45.0,
+          "progress_gain": 0.2583,
+          "projected_recovery_time": 45.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a1",
+            "a5",
+            "a2"
+          ]
+        },
+        {
+          "projected_state": {
+            "containment": 0.5,
+            "assessment": 0.45,
+            "preservation": 0.5,
+            "eviction": 0.05,
+            "hardening": 0.05,
+            "restoration": 0.5
+          },
+          "cumulative_cost": 45.0,
+          "progress_gain": 0.2583,
+          "projected_recovery_time": 45.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a1",
+            "a5",
+            "a2"
+          ]
+        },
+        {
+          "projected_state": {
+            "containment": 0.5,
+            "assessment": 0.45,
+            "preservation": 0.5,
+            "eviction": 0.05,
+            "hardening": 0.05,
+            "restoration": 0.5
+          },
+          "cumulative_cost": 45.0,
+          "progress_gain": 0.2583,
+          "projected_recovery_time": 45.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a1",
+            "a5",
+            "a2"
+          ]
+        }
+      ],
+      "score": -20.42,
+      "hallucination_flag": false,
+      "validation_passed": true,
+      "selection_reason": "score=-20.420; progress_gain=0.258; cumulative_cost=45.00; risk_penalty=0.25."
+    },
+    {
+      "action": {
+        "action_id": "a5",
+        "action_name": "恢复 api-backend 关键服务并验证",
+        "description": "恢复业务服务并执行验证，推进恢复完成。",
+        "target_stage": "restoration",
+        "estimated_cost": 12.0,
+        "risk_penalty": 0.3,
+        "confidence": 0.72,
+        "reasoning": "在遏制与清除后执行业务恢复与验证。",
+        "command": "systemctl restart critical-service && systemctl status critical-service",
+        "api_call": "POST /ops/recover?asset=api-backend",
+        "effects": {
+          "containment": 0.0,
+          "assessment": 0.1,
+          "preservation": 0.0,
+          "eviction": 0.0,
+          "hardening": 0.0,
+          "restoration": 0.45
+        },
+        "target_assets": [
+          "api-backend"
+        ],
+        "capability_tags": [
+          "service_recovery"
+        ],
+        "sub_steps": [
+          {
+            "name": "服务重启",
+            "cost_minutes": 8,
+            "mode": "serial"
+          },
+          {
+            "name": "健康检查",
+            "cost_minutes": 4,
+            "mode": "serial"
+          }
+        ],
+        "parallel_group": "recovery",
+        "id": "a5",
+        "name": "恢复 api-backend 关键服务并验证",
+        "stage": "restoration",
+        "risk": 0.3,
+        "cost_minutes": 12.0,
+        "reason": "在遏制与清除后执行业务恢复与验证。"
+      },
+      "projected_state": {
+        "containment": 0.5,
+        "assessment": 0.45,
+        "preservation": 0.5,
+        "eviction": 0.05,
+        "hardening": 0.05,
+        "restoration": 0.5
+      },
+      "rollout_results": [
+        {
+          "projected_state": {
+            "containment": 0.5,
+            "assessment": 0.45,
+            "preservation": 0.5,
+            "eviction": 0.05,
+            "hardening": 0.05,
+            "restoration": 0.5
+          },
+          "cumulative_cost": 45.0,
+          "progress_gain": 0.2583,
+          "projected_recovery_time": 45.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a5",
+            "a2",
+            "a1"
+          ]
+        },
+        {
+          "projected_state": {
+            "containment": 0.5,
+            "assessment": 0.45,
+            "preservation": 0.5,
+            "eviction": 0.05,
+            "hardening": 0.05,
+            "restoration": 0.5
+          },
+          "cumulative_cost": 45.0,
+          "progress_gain": 0.2583,
+          "projected_recovery_time": 45.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a5",
+            "a1",
+            "a2"
+          ]
+        },
+        {
+          "projected_state": {
+            "containment": 0.5,
+            "assessment": 0.45,
+            "preservation": 0.5,
+            "eviction": 0.05,
+            "hardening": 0.05,
+            "restoration": 0.5
+          },
+          "cumulative_cost": 45.0,
+          "progress_gain": 0.2583,
+          "projected_recovery_time": 45.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a5",
+            "a1",
+            "a2"
+          ]
+        }
+      ],
+      "score": -20.67,
+      "hallucination_flag": false,
+      "validation_passed": true,
+      "selection_reason": "score=-20.670; progress_gain=0.258; cumulative_cost=45.00; risk_penalty=0.30."
+    }
+  ],
+  "scores": [
+    {
+      "action_id": "a2",
+      "score": -19.92,
+      "validation_passed": true
+    },
+    {
+      "action_id": "a1",
+      "score": -20.42,
+      "validation_passed": true
+    },
+    {
+      "action_id": "a5",
+      "score": -20.67,
+      "validation_passed": true
+    }
+  ],
+  "best_action_reason": "score=-19.920; progress_gain=0.258; cumulative_cost=45.00; risk_penalty=0.15.",
+  "final_output": {
+    "audit_result": "pass",
+    "execution_allowed": true,
+    "best_action": {
+      "action_id": "a2",
+      "action_name": "采集 api-backend 内存与磁盘镜像",
+      "description": "在清除前先进行证据保全，支持溯源和合规。",
+      "target_stage": "preservation",
+      "estimated_cost": 20.0,
+      "risk_penalty": 0.15,
+      "confidence": 0.79,
+      "reasoning": "当前取证保全维度较低，优先补齐证据链。",
+      "command": "velociraptor collect --target api-backend --profile memory,disk",
+      "api_call": "POST /forensics/acquire?asset=api-backend",
+      "effects": {
+        "containment": 0.0,
+        "assessment": 0.1,
+        "preservation": 0.45,
+        "eviction": 0.0,
+        "hardening": 0.0,
+        "restoration": 0.0
+      },
+      "target_assets": [
+        "api-backend"
+      ],
+      "capability_tags": [
+        "forensics_collection"
+      ],
+      "sub_steps": [
+        {
+          "name": "内存采集",
+          "cost_minutes": 18,
+          "mode": "parallel",
+          "group": "forensics"
+        },
+        {
+          "name": "磁盘采集",
+          "cost_minutes": 20,
+          "mode": "parallel",
+          "group": "forensics"
+        }
+      ],
+      "parallel_group": "forensics",
+      "id": "a2",
+      "name": "采集 api-backend 内存与磁盘镜像",
+      "stage": "preservation",
+      "risk": 0.15,
+      "cost_minutes": 20.0,
+      "reason": "当前取证保全维度较低，优先补齐证据链。"
+    }
+  },
+  "result": {
+    "incident": {
+      "event_summary": "The `api-backend` host (10.128.0.30) retrieved container images from Google Artifact Registry over HTTPS, using a self-signed staging certificate issued by Let's Encrypt.",
+      "ioc": {
+        "ip": [
+          "10.128.0.0",
+          "10.128.0.1",
+          "10.128.0.20",
+          "10.128.0.30",
+          "10.128.0.35",
+          "10.128.0.5",
+          "10.128.0.50",
+          "34.118.90.120",
+          "8.8.8.8"
+        ],
+        "domain": [],
+        "cve": [],
+        "process": []
+      },
+      "affected_assets": [
+        "api-backend",
+        "auth",
+        "bastion-vm",
+        "billing",
+        "cart",
+        "gcp-apps",
+        "gke-node-pool",
+        "ids-vm",
+        "order",
+        "unit-test-runner",
+        "web-frontend"
+      ],
+      "raw_logs": [
+        "The `api-backend` host (10.128.0.30) retrieved container images from Google Artifact Registry over HTTPS, using a self-signed staging certificate issued by Let's Encrypt.",
+        "The `ids-vm` (10.128.0.50) sent an ICMP ping to the `web-frontend` (10.128.0.20) as part of routine packet mirroring integrity checks.",
+        "A unit-test pod in the GKE cluster (10.128.0.35) transmitted a non-functional Google API key during automated security scanning validation.",
+        "The `ids-vm` (10.128.0.50) performed a vulnerability scan on the `api-backend` (10.128.0.30) as part of scheduled security assessments.",
+        "An SSH connection was established from the `bastion-vm` (10.128.0.5) to the `web-frontend` (10.128.0.20) for administrative purposes.",
+        "The `api-backend` (10.128.0.30) accessed a service using Base64-encoded HTTP basic authentication, as expected for certain API interactions.",
+        "The `web-frontend` (10.128.0.20) performed a DNS query to Google’s public DNS resolver (8.8.8.8) for cloud service operations.",
+        "The unit-test pod (10.128.0.35) accessed Google Cloud Storage over HTTPS as part of a scripted test workflow.",
+        "The `bastion-vm` (10.128.0.5) broadcasted a Windows Active Directory domain controller announcement within the subnet.",
+        "The unit-test pod (10.128.0.35) accessed the Kubernetes API (10.128.0.1) for cluster administration tasks.",
+        "The `api-backend` (10.128.0.30) performed a scheduled backup verification with Google Cloud Storage.",
+        "The external load balancer (34.118.90.120) conducted an HTTP health check on the `web-frontend` (10.128.0.20).",
+        "The `ids-vm` (10.128.0.50) initiated an internal vulnerability scan on the `web-frontend` (10.128.0.20) as part of routine security checks."
+      ],
+      "timestamp": null
+    },
+    "state": {
+      "containment": 0.15000000000000002,
+      "assessment": 0.15000000000000002,
+      "preservation": 0.05,
+      "eviction": 0.05,
+      "hardening": 0.05,
+      "restoration": 0.05,
+      "explanation": "状态评估基于日志关键词匹配与IOC上下文。当前较高维度为: containment=0.15, assessment=0.15。 当前短板维度为: preservation, eviction。已分析日志条数: 13。",
+      "recovery": 0.05
+    },
+    "rag": {
+      "summary": "RAG检索完成（SQLite数据库检索 + 本地补全 + 规则特征）",
+      "cve_findings": [],
+      "ioc_findings": [],
+      "asset_findings": [],
+      "rule_findings": [],
+      "compressed_context": "CVE关键项: []. IOC关键项: []. 资产关键项: []. 规则关键项: []. 联网情报: []. 证据映射: [].",
+      "rag_context": {
+        "threat_summary": "CVE=0; IOC=0; RULE=0; SIMILAR_CASES=3",
+        "matched_iocs": [],
+        "matched_rules": [],
+        "matched_cves": [],
+        "similar_cases": [
+          {
+            "case_id": "incident_examples.json:0",
+            "score": 40,
+            "instruction_preview": "Below is a system description, a sequence of network logs (e.g., from an intrusion detection system), and an instruction that describes a task.\nWrite a response that appropriately completes the request.\nBefore generating the response, think",
+            "answer_preview": "I note that in the logs, the `api-backend` host (10.128.0.30) retrieved container images from Google Artifact Registry over HTTPS using a self-signed staging certificate issued by Let's Encrypt. Since"
+          },
+          {
+            "case_id": "incident_examples_min.json:0",
+            "score": 40,
+            "instruction_preview": "Below is a system description, a sequence of network logs (e.g., from an intrusion detection system), and an instruction that describes a task.\nWrite a response that appropriately completes the request.\nBefore generating the response, think",
+            "answer_preview": "I note that in the logs, the `api-backend` host (10.128.0.30) retrieved container images from Google Artifact Registry over HTTPS using a self-signed staging certificate issued by Let's Encrypt. Since"
+          },
+          {
+            "case_id": "incident_examples.json:35",
+            "score": 33,
+            "instruction_preview": "Below is a system description, a sequence of network logs (e.g., from an intrusion detection system), and an instruction that describes a task.\nWrite a response that appropriately completes the request.\nBefore generating the response, think",
+            "answer_preview": "I note that in the logs, the alert for an outgoing SSL self-signed or untrusted certificate originates from 10.128.0.30, which according to the system description is the api-backend server. This serve"
+          }
+        ],
+        "recommended_mitigations": [],
+        "asset_constraints": []
+      }
+    },
+    "response": {
+      "best_action": {
+        "action_id": "a2",
+        "action_name": "采集 api-backend 内存与磁盘镜像",
+        "description": "在清除前先进行证据保全，支持溯源和合规。",
+        "target_stage": "preservation",
+        "estimated_cost": 20.0,
+        "risk_penalty": 0.15,
+        "confidence": 0.79,
+        "reasoning": "当前取证保全维度较低，优先补齐证据链。",
+        "command": "velociraptor collect --target api-backend --profile memory,disk",
+        "api_call": "POST /forensics/acquire?asset=api-backend",
+        "effects": {
+          "containment": 0.0,
+          "assessment": 0.1,
+          "preservation": 0.45,
+          "eviction": 0.0,
+          "hardening": 0.0,
+          "restoration": 0.0
+        },
+        "target_assets": [
+          "api-backend"
+        ],
+        "capability_tags": [
+          "forensics_collection"
+        ],
+        "sub_steps": [
+          {
+            "name": "内存采集",
+            "cost_minutes": 18,
+            "mode": "parallel",
+            "group": "forensics"
+          },
+          {
+            "name": "磁盘采集",
+            "cost_minutes": 20,
+            "mode": "parallel",
+            "group": "forensics"
+          }
+        ],
+        "parallel_group": "forensics",
+        "id": "a2",
+        "name": "采集 api-backend 内存与磁盘镜像",
+        "stage": "preservation",
+        "risk": 0.15,
+        "cost_minutes": 20.0,
+        "reason": "当前取证保全维度较低，优先补齐证据链。"
+      },
+      "recommended_action": {
+        "action_id": "a2",
+        "action_name": "采集 api-backend 内存与磁盘镜像",
+        "description": "在清除前先进行证据保全，支持溯源和合规。",
+        "target_stage": "preservation",
+        "estimated_cost": 20.0,
+        "risk_penalty": 0.15,
+        "confidence": 0.79,
+        "reasoning": "当前取证保全维度较低，优先补齐证据链。",
+        "command": "velociraptor collect --target api-backend --profile memory,disk",
+        "api_call": "POST /forensics/acquire?asset=api-backend",
+        "effects": {
+          "containment": 0.0,
+          "assessment": 0.1,
+          "preservation": 0.45,
+          "eviction": 0.0,
+          "hardening": 0.0,
+          "restoration": 0.0
+        },
+        "target_assets": [
+          "api-backend"
+        ],
+        "capability_tags": [
+          "forensics_collection"
+        ],
+        "sub_steps": [
+          {
+            "name": "内存采集",
+            "cost_minutes": 18,
+            "mode": "parallel",
+            "group": "forensics"
+          },
+          {
+            "name": "磁盘采集",
+            "cost_minutes": 20,
+            "mode": "parallel",
+            "group": "forensics"
+          }
+        ],
+        "parallel_group": "forensics",
+        "id": "a2",
+        "name": "采集 api-backend 内存与磁盘镜像",
+        "stage": "preservation",
+        "risk": 0.15,
+        "cost_minutes": 20.0,
+        "reason": "当前取证保全维度较低，优先补齐证据链。"
+      },
+      "ranked_actions": [
+        {
+          "action": {
+            "action_id": "a2",
+            "action_name": "采集 api-backend 内存与磁盘镜像",
+            "description": "在清除前先进行证据保全，支持溯源和合规。",
+            "target_stage": "preservation",
+            "estimated_cost": 20.0,
+            "risk_penalty": 0.15,
+            "confidence": 0.79,
+            "reasoning": "当前取证保全维度较低，优先补齐证据链。",
+            "command": "velociraptor collect --target api-backend --profile memory,disk",
+            "api_call": "POST /forensics/acquire?asset=api-backend",
+            "effects": {
+              "containment": 0.0,
+              "assessment": 0.1,
+              "preservation": 0.45,
+              "eviction": 0.0,
+              "hardening": 0.0,
+              "restoration": 0.0
+            },
+            "target_assets": [
+              "api-backend"
+            ],
+            "capability_tags": [
+              "forensics_collection"
+            ],
+            "sub_steps": [
+              {
+                "name": "内存采集",
+                "cost_minutes": 18,
+                "mode": "parallel",
+                "group": "forensics"
+              },
+              {
+                "name": "磁盘采集",
+                "cost_minutes": 20,
+                "mode": "parallel",
+                "group": "forensics"
+              }
+            ],
+            "parallel_group": "forensics",
+            "id": "a2",
+            "name": "采集 api-backend 内存与磁盘镜像",
+            "stage": "preservation",
+            "risk": 0.15,
+            "cost_minutes": 20.0,
+            "reason": "当前取证保全维度较低，优先补齐证据链。"
+          },
+          "score": -19.92,
+          "projected_state": {
+            "containment": 0.5,
+            "assessment": 0.45,
+            "preservation": 0.5,
+            "eviction": 0.05,
+            "hardening": 0.05,
+            "restoration": 0.5
+          },
+          "cumulative_cost": 45.0,
+          "progress_gain": 0.2583,
+          "projected_recovery_time": 45.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a2",
+            "a5",
+            "a1"
+          ],
+          "reason": "score=-19.920; progress_gain=0.258; cumulative_cost=45.00; risk_penalty=0.15.",
+          "validation_passed": true,
+          "rollout_results": [
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a5",
+                "a1"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a1",
+                "a5"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a1",
+                "a5"
+              ]
+            }
+          ]
+        },
+        {
+          "action": {
+            "action_id": "a1",
+            "action_name": "隔离 api-backend 的对外连接",
+            "description": "阻断可疑外联，优先遏制攻击扩散。",
+            "target_stage": "containment",
+            "estimated_cost": 8.0,
+            "risk_penalty": 0.25,
+            "confidence": 0.84,
+            "reasoning": "IOC显示存在C2外联，优先执行网络遏制。",
+            "command": "iptables -A OUTPUT -d 10.128.0.0 -j DROP",
+            "api_call": "POST /edr/isolate?asset=api-backend",
+            "effects": {
+              "containment": 0.35,
+              "assessment": 0.1,
+              "preservation": 0.0,
+              "eviction": 0.0,
+              "hardening": 0.0,
+              "restoration": 0.0
+            },
+            "target_assets": [
+              "api-backend"
+            ],
+            "capability_tags": [
+              "network_isolation"
+            ],
+            "sub_steps": [
+              {
+                "name": "封禁C2出口",
+                "cost_minutes": 5,
+                "mode": "serial"
+              },
+              {
+                "name": "应用EDR隔离",
+                "cost_minutes": 8,
+                "mode": "parallel",
+                "group": "contain"
+              }
+            ],
+            "parallel_group": "contain",
+            "id": "a1",
+            "name": "隔离 api-backend 的对外连接",
+            "stage": "containment",
+            "risk": 0.25,
+            "cost_minutes": 8.0,
+            "reason": "IOC显示存在C2外联，优先执行网络遏制。"
+          },
+          "score": -20.42,
+          "projected_state": {
+            "containment": 0.5,
+            "assessment": 0.45,
+            "preservation": 0.5,
+            "eviction": 0.05,
+            "hardening": 0.05,
+            "restoration": 0.5
+          },
+          "cumulative_cost": 45.0,
+          "progress_gain": 0.2583,
+          "projected_recovery_time": 45.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a1",
+            "a5",
+            "a2"
+          ],
+          "reason": "score=-20.420; progress_gain=0.258; cumulative_cost=45.00; risk_penalty=0.25.",
+          "validation_passed": true,
+          "rollout_results": [
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a5",
+                "a2"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a5",
+                "a2"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a5",
+                "a2"
+              ]
+            }
+          ]
+        },
+        {
+          "action": {
+            "action_id": "a5",
+            "action_name": "恢复 api-backend 关键服务并验证",
+            "description": "恢复业务服务并执行验证，推进恢复完成。",
+            "target_stage": "restoration",
+            "estimated_cost": 12.0,
+            "risk_penalty": 0.3,
+            "confidence": 0.72,
+            "reasoning": "在遏制与清除后执行业务恢复与验证。",
+            "command": "systemctl restart critical-service && systemctl status critical-service",
+            "api_call": "POST /ops/recover?asset=api-backend",
+            "effects": {
+              "containment": 0.0,
+              "assessment": 0.1,
+              "preservation": 0.0,
+              "eviction": 0.0,
+              "hardening": 0.0,
+              "restoration": 0.45
+            },
+            "target_assets": [
+              "api-backend"
+            ],
+            "capability_tags": [
+              "service_recovery"
+            ],
+            "sub_steps": [
+              {
+                "name": "服务重启",
+                "cost_minutes": 8,
+                "mode": "serial"
+              },
+              {
+                "name": "健康检查",
+                "cost_minutes": 4,
+                "mode": "serial"
+              }
+            ],
+            "parallel_group": "recovery",
+            "id": "a5",
+            "name": "恢复 api-backend 关键服务并验证",
+            "stage": "restoration",
+            "risk": 0.3,
+            "cost_minutes": 12.0,
+            "reason": "在遏制与清除后执行业务恢复与验证。"
+          },
+          "score": -20.67,
+          "projected_state": {
+            "containment": 0.5,
+            "assessment": 0.45,
+            "preservation": 0.5,
+            "eviction": 0.05,
+            "hardening": 0.05,
+            "restoration": 0.5
+          },
+          "cumulative_cost": 45.0,
+          "progress_gain": 0.2583,
+          "projected_recovery_time": 45.0,
+          "hallucination_flag": false,
+          "rollout_path": [
+            "a5",
+            "a2",
+            "a1"
+          ],
+          "reason": "score=-20.670; progress_gain=0.258; cumulative_cost=45.00; risk_penalty=0.30.",
+          "validation_passed": true,
+          "rollout_results": [
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a2",
+                "a1"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a1",
+                "a2"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a1",
+                "a2"
+              ]
+            }
+          ]
+        }
+      ],
+      "reasons": {
+        "采集 api-backend 内存与磁盘镜像": "Rank 1: score=-19.920, progress_gain=0.258, cost=45.0m, hallucination=False, validated=True.",
+        "隔离 api-backend 的对外连接": "Rank 2: score=-20.420, progress_gain=0.258, cost=45.0m, hallucination=False, validated=True.",
+        "恢复 api-backend 关键服务并验证": "Rank 3: score=-20.670, progress_gain=0.258, cost=45.0m, hallucination=False, validated=True."
+      },
+      "expected_recovery_effect": {
+        "current_state_progress": 0.083,
+        "projected_gain_best_action": 0.258,
+        "projected_recovery_time_minutes": 45.0,
+        "projected_state_best_action": {
+          "containment": 0.5,
+          "assessment": 0.45,
+          "preservation": 0.5,
+          "eviction": 0.05,
+          "hardening": 0.05,
+          "restoration": 0.5
+        }
+      },
+      "risk_alerts": [
+        "恢复 api-backend 关键服务并验证: 风险=0.30"
+      ],
+      "executable": {
+        "shell": "velociraptor collect --target api-backend --profile memory,disk",
+        "api": "POST /forensics/acquire?asset=api-backend"
+      },
+      "explainability": {
+        "state_explanation": "状态评估基于日志关键词匹配与IOC上下文。当前较高维度为: containment=0.15, assessment=0.15。 当前短板维度为: preservation, eviction。已分析日志条数: 13。",
+        "rag_compressed_context": "CVE关键项: []. IOC关键项: []. 资产关键项: []. 规则关键项: []. 联网情报: []. 证据映射: [].",
+        "decision_policy": "Score = progress_gain * 100 - cumulative_cost - risk_penalty * 5",
+        "incident_summary": "The `api-backend` host (10.128.0.30) retrieved container images from Google Artifact Registry over HTTPS, using a self-signed staging certificate issued by Let's Encrypt."
+      },
+      "planning_explanation": "State-driven rollout planning: ranked by progress_gain, cumulative_cost, risk_penalty and hallucination checks."
+    },
+    "audit": {
+      "audit_result": "pass",
+      "findings": [
+        {
+          "severity": "low",
+          "category": "policy",
+          "detail": "规划前已过滤动作数=2。",
+          "fix_suggestion": "可在策略层持续优化动作生成质量。"
+        }
+      ],
+      "candidate_actions": [
+        {
+          "action_id": "a2",
+          "action_name": "采集 api-backend 内存与磁盘镜像",
+          "description": "在清除前先进行证据保全，支持溯源和合规。",
+          "target_stage": "preservation",
+          "estimated_cost": 20.0,
+          "risk_penalty": 0.15,
+          "confidence": 0.79,
+          "reasoning": "当前取证保全维度较低，优先补齐证据链。",
+          "command": "velociraptor collect --target api-backend --profile memory,disk",
+          "api_call": "POST /forensics/acquire?asset=api-backend",
+          "effects": {
+            "containment": 0.0,
+            "assessment": 0.1,
+            "preservation": 0.45,
+            "eviction": 0.0,
+            "hardening": 0.0,
+            "restoration": 0.0
+          },
+          "target_assets": [
+            "api-backend"
+          ],
+          "capability_tags": [
+            "forensics_collection"
+          ],
+          "sub_steps": [
+            {
+              "name": "内存采集",
+              "cost_minutes": 18,
+              "mode": "parallel",
+              "group": "forensics"
+            },
+            {
+              "name": "磁盘采集",
+              "cost_minutes": 20,
+              "mode": "parallel",
+              "group": "forensics"
+            }
+          ],
+          "parallel_group": "forensics",
+          "id": "a2",
+          "name": "采集 api-backend 内存与磁盘镜像",
+          "stage": "preservation",
+          "risk": 0.15,
+          "cost_minutes": 20.0,
+          "reason": "当前取证保全维度较低，优先补齐证据链。"
+        },
+        {
+          "action_id": "a1",
+          "action_name": "隔离 api-backend 的对外连接",
+          "description": "阻断可疑外联，优先遏制攻击扩散。",
+          "target_stage": "containment",
+          "estimated_cost": 8.0,
+          "risk_penalty": 0.25,
+          "confidence": 0.84,
+          "reasoning": "IOC显示存在C2外联，优先执行网络遏制。",
+          "command": "iptables -A OUTPUT -d 10.128.0.0 -j DROP",
+          "api_call": "POST /edr/isolate?asset=api-backend",
+          "effects": {
+            "containment": 0.35,
+            "assessment": 0.1,
+            "preservation": 0.0,
+            "eviction": 0.0,
+            "hardening": 0.0,
+            "restoration": 0.0
+          },
+          "target_assets": [
+            "api-backend"
+          ],
+          "capability_tags": [
+            "network_isolation"
+          ],
+          "sub_steps": [
+            {
+              "name": "封禁C2出口",
+              "cost_minutes": 5,
+              "mode": "serial"
+            },
+            {
+              "name": "应用EDR隔离",
+              "cost_minutes": 8,
+              "mode": "parallel",
+              "group": "contain"
+            }
+          ],
+          "parallel_group": "contain",
+          "id": "a1",
+          "name": "隔离 api-backend 的对外连接",
+          "stage": "containment",
+          "risk": 0.25,
+          "cost_minutes": 8.0,
+          "reason": "IOC显示存在C2外联，优先执行网络遏制。"
+        },
+        {
+          "action_id": "a5",
+          "action_name": "恢复 api-backend 关键服务并验证",
+          "description": "恢复业务服务并执行验证，推进恢复完成。",
+          "target_stage": "restoration",
+          "estimated_cost": 12.0,
+          "risk_penalty": 0.3,
+          "confidence": 0.72,
+          "reasoning": "在遏制与清除后执行业务恢复与验证。",
+          "command": "systemctl restart critical-service && systemctl status critical-service",
+          "api_call": "POST /ops/recover?asset=api-backend",
+          "effects": {
+            "containment": 0.0,
+            "assessment": 0.1,
+            "preservation": 0.0,
+            "eviction": 0.0,
+            "hardening": 0.0,
+            "restoration": 0.45
+          },
+          "target_assets": [
+            "api-backend"
+          ],
+          "capability_tags": [
+            "service_recovery"
+          ],
+          "sub_steps": [
+            {
+              "name": "服务重启",
+              "cost_minutes": 8,
+              "mode": "serial"
+            },
+            {
+              "name": "健康检查",
+              "cost_minutes": 4,
+              "mode": "serial"
+            }
+          ],
+          "parallel_group": "recovery",
+          "id": "a5",
+          "name": "恢复 api-backend 关键服务并验证",
+          "stage": "restoration",
+          "risk": 0.3,
+          "cost_minutes": 12.0,
+          "reason": "在遏制与清除后执行业务恢复与验证。"
+        }
+      ],
+      "state_predictions": [
+        {
+          "action_id": "a2",
+          "projected_state": {
+            "containment": 0.5,
+            "assessment": 0.45,
+            "preservation": 0.5,
+            "eviction": 0.05,
+            "hardening": 0.05,
+            "restoration": 0.5
+          }
+        },
+        {
+          "action_id": "a1",
+          "projected_state": {
+            "containment": 0.5,
+            "assessment": 0.45,
+            "preservation": 0.5,
+            "eviction": 0.05,
+            "hardening": 0.05,
+            "restoration": 0.5
+          }
+        },
+        {
+          "action_id": "a5",
+          "projected_state": {
+            "containment": 0.5,
+            "assessment": 0.45,
+            "preservation": 0.5,
+            "eviction": 0.05,
+            "hardening": 0.05,
+            "restoration": 0.5
+          }
+        }
+      ],
+      "rollout_results": [
+        {
+          "action_id": "a2",
+          "rollouts": [
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a5",
+                "a1"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a1",
+                "a5"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a1",
+                "a5"
+              ]
+            }
+          ]
+        },
+        {
+          "action_id": "a1",
+          "rollouts": [
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a5",
+                "a2"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a5",
+                "a2"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a5",
+                "a2"
+              ]
+            }
+          ]
+        },
+        {
+          "action_id": "a5",
+          "rollouts": [
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a2",
+                "a1"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a1",
+                "a2"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a1",
+                "a2"
+              ]
+            }
+          ]
+        }
+      ],
+      "scores": [
+        {
+          "action_id": "a2",
+          "score": -19.92,
+          "validation_passed": true
+        },
+        {
+          "action_id": "a1",
+          "score": -20.42,
+          "validation_passed": true
+        },
+        {
+          "action_id": "a5",
+          "score": -20.67,
+          "validation_passed": true
+        }
+      ],
+      "best_action_selection_reason": "score=-19.920; progress_gain=0.258; cumulative_cost=45.00; risk_penalty=0.15.",
+      "filtered_actions": [
+        {
+          "action_id": "a3",
+          "action_name": "终止进程 unknown.exe 并隔离样本",
+          "reason": "动作与incident上下文不一致，已过滤。"
+        },
+        {
+          "action_id": "a4",
+          "action_name": "修复漏洞 CVE-unknown 并更新基线",
+          "reason": "动作与incident上下文不一致，已过滤。"
+        }
+      ],
+      "execution_guardrails": [
+        "若 audit_result=fail，禁止自动执行",
+        "优先执行 validation_passed 且 hallucination_flag=false 的动作",
+        "高风险动作需人工审批"
+      ],
+      "final_note": "state_progress=0.083; incident_assets=11; rag_context_len=65",
+      "planning_trace": [
+        {
+          "action": {
+            "action_id": "a2",
+            "action_name": "采集 api-backend 内存与磁盘镜像",
+            "description": "在清除前先进行证据保全，支持溯源和合规。",
+            "target_stage": "preservation",
+            "estimated_cost": 20.0,
+            "risk_penalty": 0.15,
+            "confidence": 0.79,
+            "reasoning": "当前取证保全维度较低，优先补齐证据链。",
+            "command": "velociraptor collect --target api-backend --profile memory,disk",
+            "api_call": "POST /forensics/acquire?asset=api-backend",
+            "effects": {
+              "containment": 0.0,
+              "assessment": 0.1,
+              "preservation": 0.45,
+              "eviction": 0.0,
+              "hardening": 0.0,
+              "restoration": 0.0
+            },
+            "target_assets": [
+              "api-backend"
+            ],
+            "capability_tags": [
+              "forensics_collection"
+            ],
+            "sub_steps": [
+              {
+                "name": "内存采集",
+                "cost_minutes": 18,
+                "mode": "parallel",
+                "group": "forensics"
+              },
+              {
+                "name": "磁盘采集",
+                "cost_minutes": 20,
+                "mode": "parallel",
+                "group": "forensics"
+              }
+            ],
+            "parallel_group": "forensics",
+            "id": "a2",
+            "name": "采集 api-backend 内存与磁盘镜像",
+            "stage": "preservation",
+            "risk": 0.15,
+            "cost_minutes": 20.0,
+            "reason": "当前取证保全维度较低，优先补齐证据链。"
+          },
+          "projected_state": {
+            "containment": 0.5,
+            "assessment": 0.45,
+            "preservation": 0.5,
+            "eviction": 0.05,
+            "hardening": 0.05,
+            "restoration": 0.5
+          },
+          "rollout_results": [
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a5",
+                "a1"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a1",
+                "a5"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a2",
+                "a1",
+                "a5"
+              ]
+            }
+          ],
+          "score": -19.92,
+          "hallucination_flag": false,
+          "validation_passed": true,
+          "selection_reason": "score=-19.920; progress_gain=0.258; cumulative_cost=45.00; risk_penalty=0.15."
+        },
+        {
+          "action": {
+            "action_id": "a1",
+            "action_name": "隔离 api-backend 的对外连接",
+            "description": "阻断可疑外联，优先遏制攻击扩散。",
+            "target_stage": "containment",
+            "estimated_cost": 8.0,
+            "risk_penalty": 0.25,
+            "confidence": 0.84,
+            "reasoning": "IOC显示存在C2外联，优先执行网络遏制。",
+            "command": "iptables -A OUTPUT -d 10.128.0.0 -j DROP",
+            "api_call": "POST /edr/isolate?asset=api-backend",
+            "effects": {
+              "containment": 0.35,
+              "assessment": 0.1,
+              "preservation": 0.0,
+              "eviction": 0.0,
+              "hardening": 0.0,
+              "restoration": 0.0
+            },
+            "target_assets": [
+              "api-backend"
+            ],
+            "capability_tags": [
+              "network_isolation"
+            ],
+            "sub_steps": [
+              {
+                "name": "封禁C2出口",
+                "cost_minutes": 5,
+                "mode": "serial"
+              },
+              {
+                "name": "应用EDR隔离",
+                "cost_minutes": 8,
+                "mode": "parallel",
+                "group": "contain"
+              }
+            ],
+            "parallel_group": "contain",
+            "id": "a1",
+            "name": "隔离 api-backend 的对外连接",
+            "stage": "containment",
+            "risk": 0.25,
+            "cost_minutes": 8.0,
+            "reason": "IOC显示存在C2外联，优先执行网络遏制。"
+          },
+          "projected_state": {
+            "containment": 0.5,
+            "assessment": 0.45,
+            "preservation": 0.5,
+            "eviction": 0.05,
+            "hardening": 0.05,
+            "restoration": 0.5
+          },
+          "rollout_results": [
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a5",
+                "a2"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a5",
+                "a2"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a1",
+                "a5",
+                "a2"
+              ]
+            }
+          ],
+          "score": -20.42,
+          "hallucination_flag": false,
+          "validation_passed": true,
+          "selection_reason": "score=-20.420; progress_gain=0.258; cumulative_cost=45.00; risk_penalty=0.25."
+        },
+        {
+          "action": {
+            "action_id": "a5",
+            "action_name": "恢复 api-backend 关键服务并验证",
+            "description": "恢复业务服务并执行验证，推进恢复完成。",
+            "target_stage": "restoration",
+            "estimated_cost": 12.0,
+            "risk_penalty": 0.3,
+            "confidence": 0.72,
+            "reasoning": "在遏制与清除后执行业务恢复与验证。",
+            "command": "systemctl restart critical-service && systemctl status critical-service",
+            "api_call": "POST /ops/recover?asset=api-backend",
+            "effects": {
+              "containment": 0.0,
+              "assessment": 0.1,
+              "preservation": 0.0,
+              "eviction": 0.0,
+              "hardening": 0.0,
+              "restoration": 0.45
+            },
+            "target_assets": [
+              "api-backend"
+            ],
+            "capability_tags": [
+              "service_recovery"
+            ],
+            "sub_steps": [
+              {
+                "name": "服务重启",
+                "cost_minutes": 8,
+                "mode": "serial"
+              },
+              {
+                "name": "健康检查",
+                "cost_minutes": 4,
+                "mode": "serial"
+              }
+            ],
+            "parallel_group": "recovery",
+            "id": "a5",
+            "name": "恢复 api-backend 关键服务并验证",
+            "stage": "restoration",
+            "risk": 0.3,
+            "cost_minutes": 12.0,
+            "reason": "在遏制与清除后执行业务恢复与验证。"
+          },
+          "projected_state": {
+            "containment": 0.5,
+            "assessment": 0.45,
+            "preservation": 0.5,
+            "eviction": 0.05,
+            "hardening": 0.05,
+            "restoration": 0.5
+          },
+          "rollout_results": [
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a2",
+                "a1"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a1",
+                "a2"
+              ]
+            },
+            {
+              "projected_state": {
+                "containment": 0.5,
+                "assessment": 0.45,
+                "preservation": 0.5,
+                "eviction": 0.05,
+                "hardening": 0.05,
+                "restoration": 0.5
+              },
+              "cumulative_cost": 45.0,
+              "progress_gain": 0.2583,
+              "projected_recovery_time": 45.0,
+              "hallucination_flag": false,
+              "rollout_path": [
+                "a5",
+                "a1",
+                "a2"
+              ]
+            }
+          ],
+          "score": -20.67,
+          "hallucination_flag": false,
+          "validation_passed": true,
+          "selection_reason": "score=-20.670; progress_gain=0.258; cumulative_cost=45.00; risk_penalty=0.30."
+        }
+      ]
+    },
+    "execution_allowed": true,
+    "model_runtime": {
+      "provider": "qwen",
+      "model_name": "qwen-plus",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+    },
+    "skill_runtime": {
+      "loaded_skills": [
+        "soc-decision-auditor",
+        "soc-incident-triage",
+        "soc-rag-intel-analyst",
+        "soc-response-planner"
+      ],
+      "execution_trace": [
+        {
+          "stage": "triage",
+          "skill": "soc-incident-triage",
+          "status": "executed"
+        },
+        {
+          "stage": "rag",
+          "skill": "soc-rag-intel-analyst",
+          "status": "executed",
+          "elapsed_ms": "1769"
+        },
+        {
+          "stage": "triage",
+          "skill": "soc-incident-triage",
+          "status": "executed",
+          "elapsed_ms": "0"
+        },
+        {
+          "stage": "planning",
+          "skill": "soc-response-planner",
+          "status": "executed",
+          "elapsed_ms": "47309"
+        },
+        {
+          "stage": "audit",
+          "skill": "soc-decision-auditor",
+          "status": "executed",
+          "elapsed_ms": "0"
+        }
+      ]
+    },
+    "multi_agent": {
+      "enabled": false,
+      "converged": false,
+      "selected_action_id": "a2",
+      "rounds": [],
+      "reason": "state_driven_planning",
+      "elapsed_ms": 0
+    },
+    "rule_generation": {
+      "enabled": true,
+      "reason": "no_cve",
+      "provider": "qwen",
+      "results": [],
+      "elapsed_ms": 0
+    },
+    "input_meta": {
+      "source": "dataset",
+      "sample_index": 0,
+      "dataset_size": 3,
+      "answer_preview": "I note that in the logs, the `api-backend` host (10.128.0.30) retrieved container images from Google Artifact Registry over HTTPS using a self-signed staging certificate issued by Let's Encrypt. Since",
+      "path": "/home/kali/SentriX/backend/dataset/incident_examples_min.json"
+    }
+  }
+}
