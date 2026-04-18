@@ -36,4 +36,5 @@ frontend/.env.*
 .DS_Store
 .idea/
 .vscode/
-/home/kali/SentriX/.env
+.env
+.env.*
