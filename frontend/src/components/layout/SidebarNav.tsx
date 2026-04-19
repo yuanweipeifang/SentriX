@@ -4,8 +4,8 @@ import type { DashboardNavItem } from '../../types/frontendPayload'
 interface SidebarNavProps {
   nav: DashboardNavItem[]
   selectedNavId: string
-  schemaVersion: string
-  caseId: string
+  assetCount: number
+  ruleCount: number
   navAccentMap: Record<string, string>
   onSelect: (id: string) => void
 }
@@ -13,18 +13,34 @@ interface SidebarNavProps {
 export function SidebarNav({
   nav,
   selectedNavId,
-  schemaVersion,
-  caseId,
+  assetCount,
+  ruleCount,
   navAccentMap,
   onSelect,
 }: SidebarNavProps) {
+  const selectedNavLabel = nav.find((item) => item.id === selectedNavId)?.label || '未选择页面'
+
   return (
     <aside className="sidebar">
       <div className="brand-card">
-        <div className="brand-mark">SX</div>
-        <div>
+        <div className="brand-mark">
+          <span className="brand-mark-shield" />
+          <span className="brand-mark-network">
+            <span className="brand-mark-link brand-mark-link-a" />
+            <span className="brand-mark-link brand-mark-link-b" />
+            <span className="brand-mark-node brand-mark-node-top" />
+            <span className="brand-mark-node brand-mark-node-left" />
+            <span className="brand-mark-node brand-mark-node-right" />
+            <span className="brand-mark-node brand-mark-node-core" />
+          </span>
+          <span className="brand-mark-caption">SOC</span>
+        </div>
+        <div className="brand-copy">
           <div className="brand-title">SentriX</div>
-          <div className="brand-subtitle">Threat Response Console</div>
+          <div className="brand-badge-row">
+            <span className="brand-badge">CORE</span>
+            <span className="brand-status">LIVE</span>
+          </div>
         </div>
       </div>
 
@@ -47,12 +63,12 @@ export function SidebarNav({
 
       <div className="sidebar-footer">
         <div className="side-stat">
-          <span>Schema</span>
-          <strong>{schemaVersion}</strong>
+          <span>当前页面</span>
+          <strong>{selectedNavLabel}</strong>
         </div>
         <div className="side-stat">
-          <span>Case</span>
-          <strong>{caseId || 'N/A'}</strong>
+          <span>数据概览</span>
+          <strong>{`资产 ${assetCount} · 规则 ${ruleCount}`}</strong>
         </div>
       </div>
     </aside>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createEmptyUiShellData } from '../constants/defaultUi'
 import {
   DEFAULT_FRONTEND_PAYLOAD_QUERY,
@@ -14,6 +14,21 @@ export function useDashboardData() {
   const [ui, setUi] = useState<UiShellData>(emptyUi)
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [errorMessage, setErrorMessage] = useState('')
+
+  const refreshUi = useCallback(async () => {
+    setLoadState('loading')
+    try {
+      const raw = await fetchFrontendPayload(DEFAULT_FRONTEND_PAYLOAD_QUERY)
+      setUi(normalizeFrontendPayload(raw))
+      setLoadState('success')
+      setErrorMessage('')
+    } catch (error) {
+      setUi(emptyUi)
+      setLoadState('fallback')
+      setErrorMessage(error instanceof Error ? error.message : 'unknown error')
+      throw error
+    }
+  }, [emptyUi])
 
   useEffect(() => {
     let active = true
@@ -40,5 +55,5 @@ export function useDashboardData() {
     }
   }, [emptyUi])
 
-  return { ui, loadState, errorMessage }
+  return { ui, loadState, errorMessage, refreshUi }
 }

@@ -1,8 +1,11 @@
 import { DEFAULT_NAV, createEmptyFrontendPayload } from '../constants/defaultUi'
 import type {
   AiPanelMessage,
+  CountermeasurePreview,
   DashboardNavItem,
+  ExecutionTask,
   FrontendPayload,
+  OrchestrationNode,
   UiShellData,
 } from '../types/frontendPayload'
 
@@ -26,6 +29,71 @@ function asBoolean(input: unknown, fallback = false): boolean {
 
 function asNumber(input: unknown, fallback = 0): number {
   return typeof input === 'number' && Number.isFinite(input) ? input : fallback
+}
+
+function asStringArray(input: unknown, fallback: string[] = []): string[] {
+  if (!Array.isArray(input)) {
+    return fallback
+  }
+  return input.map((item) => String(item ?? '').trim()).filter(Boolean)
+}
+
+function normalizeExecutionTask(input: unknown): ExecutionTask {
+  const item = asRecord(input)
+  return {
+    task_id: asString(item.task_id),
+    name: asString(item.name),
+    description: asString(item.description),
+    execution_type: asString(item.execution_type),
+    parallel_group: asString(item.parallel_group),
+    mode: asString(item.mode),
+    stage: asString(item.stage),
+    shell: asString(item.shell),
+    api: asString(item.api),
+    estimated_cost_minutes: asNumber(item.estimated_cost_minutes),
+    target_assets: asStringArray(item.target_assets),
+    capability_tags: asStringArray(item.capability_tags),
+    countermeasure_kind: asString(item.countermeasure_kind),
+    requires_approval: asBoolean(item.requires_approval),
+  }
+}
+
+function normalizeCountermeasure(input: unknown): CountermeasurePreview {
+  const item = asRecord(input)
+  return {
+    countermeasure_id: asString(item.countermeasure_id),
+    task_id: asString(item.task_id),
+    title: asString(item.title),
+    description: asString(item.description),
+    kind: asString(item.kind),
+    stage: asString(item.stage),
+    mode: asString(item.mode),
+    status: asString(item.status),
+    command_preview: asString(item.command_preview),
+    api_preview: asString(item.api_preview),
+    target_assets: asStringArray(item.target_assets),
+    capability_tags: asStringArray(item.capability_tags),
+    requires_approval: asBoolean(item.requires_approval),
+    status_message: asString(item.status_message),
+    operation_id: asString(item.operation_id),
+    executed_at: asString(item.executed_at),
+    provider: asString(item.provider),
+    applied: asBoolean(item.applied),
+  }
+}
+
+function normalizeOrchestrationNode(input: unknown): OrchestrationNode {
+  const item = asRecord(input)
+  return {
+    id: asString(item.id),
+    type: asString(item.type, 'node'),
+    name: asString(item.name),
+    stage: asString(item.stage),
+    execution_type: asString(item.execution_type),
+    mode: asString(item.mode),
+    parallel_group: asString(item.parallel_group),
+    requires_approval: asBoolean(item.requires_approval),
+  }
 }
 
 function buildAiMessages(raw: Record<string, unknown>, frontendPayload: FrontendPayload): AiPanelMessage[] {
@@ -113,17 +181,25 @@ export function normalizeFrontendPayload(rawInput: unknown): UiShellData {
       mode: asString(asRecord(source.execution).mode, defaultPayload.execution.mode),
       guardrails: asArray(asRecord(source.execution).guardrails, defaultPayload.execution.guardrails),
       playbook: asRecord(asRecord(source.execution).playbook),
-      tasks: asArray(asRecord(source.execution).tasks, defaultPayload.execution.tasks),
+      tasks: asArray(asRecord(source.execution).tasks).map((item) => normalizeExecutionTask(item)),
+      countermeasures: asArray(asRecord(source.execution).countermeasures).map((item) => normalizeCountermeasure(item)),
       summary: asRecord(asRecord(source.execution).summary),
     },
     orchestration: {
       graph_id: asString(asRecord(source.orchestration).graph_id, defaultPayload.orchestration.graph_id),
       strategy: asString(asRecord(source.orchestration).strategy, defaultPayload.orchestration.strategy),
-      nodes: asArray(asRecord(source.orchestration).nodes, defaultPayload.orchestration.nodes),
+      nodes: asArray(asRecord(source.orchestration).nodes).map((item) => normalizeOrchestrationNode(item)),
       edges: asArray(asRecord(source.orchestration).edges, defaultPayload.orchestration.edges),
       approval_nodes: asArray(asRecord(source.orchestration).approval_nodes, defaultPayload.orchestration.approval_nodes),
       rollback_plan: asRecord(asRecord(source.orchestration).rollback_plan),
       execution_order: asArray(asRecord(source.orchestration).execution_order, defaultPayload.orchestration.execution_order),
+    },
+    rules: {
+      total: asNumber(asRecord(source.rules).total, defaultPayload.rules.total),
+      page: asNumber(asRecord(source.rules).page, defaultPayload.rules.page),
+      page_size: asNumber(asRecord(source.rules).page_size, defaultPayload.rules.page_size),
+      db_path: asString(asRecord(source.rules).db_path, defaultPayload.rules.db_path),
+      items: asArray(asRecord(source.rules).items, defaultPayload.rules.items),
     },
     case_memory: {
       stored: asBoolean(asRecord(source.case_memory).stored, defaultPayload.case_memory.stored),
@@ -153,7 +229,7 @@ export function normalizeFrontendPayload(rawInput: unknown): UiShellData {
 
   return {
     nav,
-    selectedNavId: 'analysis',
+    selectedNavId: 'home',
     frontendPayload,
     aiPanel,
   }

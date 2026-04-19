@@ -4,6 +4,14 @@ interface SidebarIconProps {
 
 export function SidebarIcon({ id }: SidebarIconProps) {
   switch (id) {
+    case 'home':
+      return (
+        <svg viewBox="0 0 24 24" className="nav-svg" aria-hidden="true">
+          <path d="M4 10.5 12 4l8 6.5" />
+          <path d="M7 10v9h10v-9" />
+          <path d="M10 19v-5h4v5" />
+        </svg>
+      )
     case 'dashboard':
       return (
         <svg viewBox="0 0 24 24" className="nav-svg" aria-hidden="true">

@@ -1,12 +1,12 @@
 import type { DashboardNavItem, FrontendPayload, UiShellData } from '../types/frontendPayload'
 
 export const DEFAULT_NAV: DashboardNavItem[] = [
+  { id: 'home', label: '首页' },
   { id: 'dashboard', label: '仪表盘' },
-  { id: 'analysis', label: '事件研判', badge: 'LIVE' },
-  { id: 'evidence', label: '证据图谱' },
+  { id: 'analysis', label: '事件研判' },
   { id: 'hunt', label: '猎捕查询' },
   { id: 'execution', label: '执行编排' },
-  { id: 'history', label: '历史案例' },
+  { id: 'history', label: '攻击规则' },
   { id: 'settings', label: '系统设置' },
 ]
 
@@ -64,6 +64,7 @@ export function createEmptyFrontendPayload(): FrontendPayload {
       guardrails: [],
       playbook: {},
       tasks: [],
+      countermeasures: [],
       summary: {},
     },
     orchestration: {
@@ -74,6 +75,13 @@ export function createEmptyFrontendPayload(): FrontendPayload {
       approval_nodes: [],
       rollback_plan: {},
       execution_order: [],
+    },
+    rules: {
+      total: 0,
+      page: 1,
+      page_size: 100,
+      db_path: '',
+      items: [],
     },
     case_memory: {
       stored: false,
@@ -98,7 +106,7 @@ export function createEmptyFrontendPayload(): FrontendPayload {
 export function createEmptyUiShellData(): UiShellData {
   return {
     nav: DEFAULT_NAV,
-    selectedNavId: 'analysis',
+    selectedNavId: 'home',
     frontendPayload: createEmptyFrontendPayload(),
     aiPanel: {
       title: 'AI 协同窗口',

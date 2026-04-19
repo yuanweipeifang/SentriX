@@ -23,6 +23,7 @@ class ExecutionAdapter:
             "api": api,
             "playbook": playbook,
             "tasks": tasks,
+            "countermeasures": self._build_countermeasures(action, tasks, mode),
             "orchestration": orchestration,
             "guardrails": guardrails,
             "target_assets": list(action.target_assets or []),
@@ -97,6 +98,9 @@ class ExecutionAdapter:
                     "api": (action.api_call or "").strip() if mode in {"api", "hybrid"} and idx == 1 else "",
                     "estimated_cost_minutes": step.get("estimated_cost_minutes", action.estimated_cost),
                     "target_assets": list(action.target_assets or []),
+                    "description": action.description,
+                    "capability_tags": list(action.capability_tags or []),
+                    "countermeasure_kind": self._infer_countermeasure_kind(action),
                     "requires_approval": action.risk_penalty >= 0.3,
                 }
             )
@@ -178,6 +182,30 @@ class ExecutionAdapter:
             "guardrails": guardrails,
         }
 
+    def _build_countermeasures(self, action: Action, tasks: List[Dict[str, Any]], mode: str) -> List[Dict[str, Any]]:
+        countermeasure_kind = self._infer_countermeasure_kind(action)
+        previews: List[Dict[str, Any]] = []
+        for idx, task in enumerate(tasks, start=1):
+            task_id = str(task.get("task_id", f"task-{idx}"))
+            previews.append(
+                {
+                    "countermeasure_id": f"cm-{action.action_id}-{idx}",
+                    "task_id": task_id,
+                    "title": str(task.get("name", action.action_name)),
+                    "description": action.description,
+                    "kind": countermeasure_kind,
+                    "stage": action.target_stage,
+                    "mode": mode,
+                    "status": "approval_required" if action.risk_penalty >= 0.3 else "ready",
+                    "command_preview": str(task.get("shell", "")),
+                    "api_preview": str(task.get("api", "")),
+                    "target_assets": list(action.target_assets or []),
+                    "capability_tags": list(action.capability_tags or []),
+                    "requires_approval": action.risk_penalty >= 0.3,
+                }
+            )
+        return previews
+
     @staticmethod
     def _build_guardrails(incident: Incident, action: Action, mode: str) -> List[str]:
         guardrails = [
@@ -208,3 +236,30 @@ class ExecutionAdapter:
         if stage == "restoration":
             return "恢复前一稳定快照或服务版本"
         return "按变更流程执行标准回滚"
+
+    @staticmethod
+    def _infer_countermeasure_kind(action: Action) -> str:
+        tags = {str(item).strip().lower() for item in (action.capability_tags or []) if str(item).strip()}
+        stage = action.target_stage.lower()
+        haystack = " ".join(
+            [
+                action.action_name,
+                action.description,
+                action.command,
+                action.api_call or "",
+                stage,
+                " ".join(sorted(tags)),
+            ]
+        ).lower()
+
+        if "network_isolation" in tags or any(token in haystack for token in ("隔离", "isolate", "iptables", "drop")):
+            return "network_isolation"
+        if "process_control" in tags or any(token in haystack for token in ("kill", "pkill", "terminate", "终止进程")):
+            return "process_termination"
+        if "forensics_collection" in tags or any(token in haystack for token in ("forensics", "采集", "镜像")):
+            return "evidence_preservation"
+        if "patch_management" in tags or any(token in haystack for token in ("patch", "补丁", "cve", "基线")):
+            return "patch_management"
+        if "service_recovery" in tags or any(token in haystack for token in ("恢复", "restart", "recover")):
+            return "service_recovery"
+        return "generic_response"

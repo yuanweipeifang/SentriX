@@ -1,43 +1,78 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { SectionTitle } from '../common/SectionTitle'
-import type { ExecutionPanel, OrchestrationGraph } from '../../types/frontendPayload'
+import { dispatchCountermeasure } from '../../services/countermeasureApi'
+import type {
+  CountermeasurePreview,
+  ExecutionPanel,
+  ExecutionTask,
+  IncidentOverview,
+  OrchestrationGraph,
+} from '../../types/frontendPayload'
 
 interface OrchestrationPanelProps {
   execution: ExecutionPanel
   orchestration: OrchestrationGraph
+  incident: IncidentOverview
+  caseId: string
+  onRefreshData?: () => Promise<void>
 }
 
-export function OrchestrationPanel({ execution, orchestration }: OrchestrationPanelProps) {
+interface CountermeasureState {
+  taskId: string
+  status: string
+  message: string
+  steps: string[]
+  safeguards: string[]
+  operationId: string
+}
+
+const EMPTY_COUNTERMEASURE_STATE: CountermeasureState = {
+  taskId: '',
+  status: '',
+  message: '',
+  steps: [],
+  safeguards: [],
+  operationId: '',
+}
+
+function pickCountermeasure(
+  countermeasures: CountermeasurePreview[],
+  task: ExecutionTask | undefined,
+  stage: string,
+): CountermeasurePreview | undefined {
+  if (!task) {
+    return countermeasures.find((item) => item.stage === stage) ?? countermeasures[0]
+  }
+  return (
+    countermeasures.find((item) => item.task_id === task.task_id) ??
+    countermeasures.find((item) => item.stage === task.stage) ??
+    countermeasures[0]
+  )
+}
+
+export function OrchestrationPanel({ execution, orchestration, incident, caseId, onRefreshData }: OrchestrationPanelProps) {
   const nodes = useMemo(() => orchestration.nodes.slice(0, 8), [orchestration.nodes])
   const [selectedNodeId, setSelectedNodeId] = useState<string>(String(nodes[0]?.id ?? ''))
-  const [zoom, setZoom] = useState<number>(1)
+  const [countermeasurePending, setCountermeasurePending] = useState(false)
+  const [countermeasureError, setCountermeasureError] = useState('')
+  const [countermeasureState, setCountermeasureState] = useState<CountermeasureState>(EMPTY_COUNTERMEASURE_STATE)
+
+  const orderedNodes = useMemo(() => {
+    const mapped = orchestration.execution_order
+      .map((nodeId) => nodes.find((node) => node.id === String(nodeId)))
+      .filter((node): node is (typeof nodes)[number] => Boolean(node))
+    return mapped.length > 0 ? mapped : nodes
+  }, [nodes, orchestration.execution_order])
+
+  const activeNodeId = useMemo(() => {
+    const matched = orderedNodes.find((node) => node.id === selectedNodeId)
+    return matched ? selectedNodeId : String(orderedNodes[0]?.id ?? '')
+  }, [orderedNodes, selectedNodeId])
+
   const selectedNode = useMemo(
-    () => nodes.find((node) => String(node.id ?? '') === selectedNodeId) ?? nodes[0],
-    [nodes, selectedNodeId],
+    () => orderedNodes.find((node) => node.id === activeNodeId) ?? orderedNodes[0],
+    [activeNodeId, orderedNodes],
   )
-  const graphEdges = useMemo(() => {
-    if (orchestration.edges.length > 0) return orchestration.edges
-
-    return orchestration.execution_order.slice(0, Math.max(0, orchestration.execution_order.length - 1)).map((nodeId, index) => ({
-      from: nodeId,
-      to: orchestration.execution_order[index + 1],
-      relation: 'next',
-    }))
-  }, [orchestration.edges, orchestration.execution_order])
-
-  const layout = useMemo(() => {
-    const positions: Record<string, { x: number; y: number }> = {}
-    const total = Math.max(nodes.length, 1)
-
-    nodes.forEach((node, index) => {
-      const id = String(node.id ?? index)
-      const x = total === 1 ? 50 : 12 + (index * 76) / Math.max(total - 1, 1)
-      const y = String(node.type ?? '').includes('approval') ? 34 : index % 2 === 0 ? 62 : 78
-      positions[id] = { x, y }
-    })
-
-    return positions
-  }, [nodes])
 
   const selectedTask = useMemo(
     () =>
@@ -46,138 +81,242 @@ export function OrchestrationPanel({ execution, orchestration }: OrchestrationPa
     [execution.tasks, selectedNode],
   )
 
-  useEffect(() => {
-    setSelectedNodeId(String(nodes[0]?.id ?? ''))
-  }, [nodes])
+  const selectedCountermeasure = useMemo(
+    () => pickCountermeasure(execution.countermeasures, selectedTask, selectedNode?.stage ?? ''),
+    [execution.countermeasures, selectedNode?.stage, selectedTask],
+  )
+
+  const selectedStepIndex = useMemo(
+    () => orderedNodes.findIndex((node) => node.id === String(selectedNode?.id ?? '')),
+    [orderedNodes, selectedNode],
+  )
+
+  async function handleCountermeasure(apply: boolean) {
+    if (!selectedTask) {
+      setCountermeasureError('当前动作缺少可执行任务，无法生成反制。')
+      return
+    }
+
+    setCountermeasurePending(true)
+    setCountermeasureError('')
+
+    try {
+      const response = await dispatchCountermeasure({
+        task: selectedTask,
+        case_id: caseId,
+        countermeasure: selectedCountermeasure ?? null,
+        incident,
+        playbook: execution.playbook,
+        guardrails: execution.guardrails,
+        apply,
+      })
+
+      setCountermeasureState({
+        taskId: selectedTask.task_id,
+        status: response.status,
+        message: response.message,
+        steps: response.steps,
+        safeguards: response.safeguards,
+        operationId: response.operation_id,
+      })
+
+      if (onRefreshData) {
+        await onRefreshData()
+      }
+    } catch (error) {
+      setCountermeasureError(error instanceof Error ? error.message : '反制请求失败。')
+      setCountermeasureState((current) =>
+        current.taskId === selectedTask.task_id ? EMPTY_COUNTERMEASURE_STATE : current,
+      )
+    } finally {
+      setCountermeasurePending(false)
+    }
+  }
+
+  const visibleCountermeasureState =
+    countermeasureState.taskId === selectedTask?.task_id ? countermeasureState : EMPTY_COUNTERMEASURE_STATE
+  const payloadCountermeasureState =
+    selectedCountermeasure && visibleCountermeasureState.taskId !== selectedTask?.task_id
+      ? {
+          status: selectedCountermeasure.status,
+          message: selectedCountermeasure.status_message,
+          steps: [] as string[],
+          safeguards: [] as string[],
+          operationId: selectedCountermeasure.operation_id,
+        }
+      : null
+  const resolvedCountermeasureState = payloadCountermeasureState ?? visibleCountermeasureState
 
   return (
     <section className="panel">
       <SectionTitle eyebrow="Response" title="执行编排" tone="eyebrow-violet" badge={execution.mode} />
-      <div className="orchestration-grid">
-        <div className="orchestration-card tone-info-soft">
-          <div className="mini-title text-blue">Playbook</div>
-          <div className="mono-line">{String(execution.playbook.title ?? '未定义 playbook')}</div>
-          <div className="muted">回滚提示：{String(execution.playbook.rollback_hint ?? '暂无回滚提示')}</div>
-        </div>
-        <div className="orchestration-card tone-warning-soft">
-          <div className="mini-title text-orange">Graph</div>
-          <div className="mono-line">{orchestration.graph_id || '暂无图ID'}</div>
-          <div className="muted">
-            节点 {orchestration.nodes.length} / 审批 {orchestration.approval_nodes.length}
+
+      <div className="execution-focus-grid">
+        <section className="orchestration-flow execution-step-panel">
+          <div className="graph-toolbar execution-step-head">
+            <div className="mini-title text-blue">动作步骤</div>
+            <div className="muted execution-section-note">
+              数据来自后端 `/api/frontend-payload`，执行成功后会自动刷新当前真实状态。
+            </div>
           </div>
-        </div>
-      </div>
 
-      <div className="graph-toolbar">
-        <div className="graph-filter-row">
-          <span className="graph-context-chip">strategy: {orchestration.strategy || 'default'}</span>
-          <span className="graph-context-chip">tasks: {execution.tasks.length}</span>
-          <span className="graph-context-chip">rollback: {Array.isArray(orchestration.rollback_plan.tasks) ? orchestration.rollback_plan.tasks.length : 0}</span>
-        </div>
-        <div className="graph-zoom-controls">
-          <button type="button" className="graph-control-button" onClick={() => setZoom((value) => Math.max(0.85, value - 0.1))}>
-            -
-          </button>
-          <span className="graph-zoom-value">{Math.round(zoom * 100)}%</span>
-          <button type="button" className="graph-control-button" onClick={() => setZoom((value) => Math.min(1.45, value + 0.1))}>
-            +
-          </button>
-          <button type="button" className="graph-control-button" onClick={() => setZoom(1)}>
-            reset
-          </button>
-        </div>
-      </div>
-
-      <div className="orchestration-flow">
-        <div className="flow-stage" style={{ transform: `scale(${zoom})` }}>
-          <svg className="graph-link-layer" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-            {graphEdges.map((edge, index) => {
-              const from = layout[String(edge.from ?? '')]
-              const to = layout[String(edge.to ?? '')]
-              if (!from || !to) return null
+          <div className="execution-step-list">
+            {orderedNodes.map((node, index) => {
+              const id = String(node.id ?? index)
+              const relatedTask =
+                execution.tasks.find((task) => task.task_id === id) ??
+                execution.tasks.find((task) => task.stage === String(node.stage ?? ''))
 
               return (
-                <path
-                  key={`${String(edge.from ?? index)}-${String(edge.to ?? index)}`}
-                  className={`flow-link ${
-                    selectedNodeId === String(edge.from ?? '') || selectedNodeId === String(edge.to ?? '') ? 'flow-link-active' : ''
-                  }`}
-                  d={`M ${from.x} ${from.y} C ${from.x + 8} ${from.y}, ${to.x - 8} ${to.y}, ${to.x} ${to.y}`}
-                />
+                <button
+                  key={id}
+                  type="button"
+                  className={`execution-step-item ${id === activeNodeId ? 'is-active' : ''}`}
+                  onClick={() => setSelectedNodeId(id)}
+                >
+                  <div className="execution-step-index">{index + 1}</div>
+                  <div className="execution-step-main">
+                    <div className="execution-step-top">
+                      <div className="execution-step-title">{String(node.name ?? node.id ?? 'unnamed')}</div>
+                      <div className="execution-step-meta">
+                        <span className="mini-chip text-blue">{String(node.stage ?? execution.mode)}</span>
+                        <span className="mini-chip text-violet">{String(node.type ?? 'node')}</span>
+                        <span className="mini-chip text-orange">
+                          {relatedTask?.requires_approval ? '需审批' : '自动执行'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="execution-step-bottom">
+                      <span>{relatedTask?.execution_type || 'unknown'}</span>
+                      <span>{relatedTask?.estimated_cost_minutes ?? 0} min</span>
+                    </div>
+                  </div>
+                </button>
               )
             })}
-          </svg>
-
-          {nodes.map((node, index) => {
-            const id = String(node.id ?? index)
-            const position = layout[id]
-            if (!position) return null
-
-            return (
-              <button
-                key={id}
-                type="button"
-                className={`flow-node flow-selectable flow-node-${index % 3} ${
-                  id === selectedNodeId ? 'flow-node-active' : ''
-                }`}
-                style={{ left: `${position.x}%`, top: `${position.y}%` }}
-                onClick={() => setSelectedNodeId(id)}
-              >
-                <div className="flow-node-kicker">{String(node.type ?? 'step')}</div>
-                <div className="flow-node-title">{String(node.name ?? node.id ?? 'unnamed')}</div>
-                <div className="muted">{String(node.stage ?? execution.mode)}</div>
-              </button>
-            )
-          })}
-        </div>
-
-        {orchestration.approval_nodes.length > 0 ? (
-          <div className="approval-banner">
-            审批节点 {orchestration.approval_nodes.length} 个，失败时回滚任务{' '}
-            {Array.isArray(orchestration.rollback_plan.tasks) ? orchestration.rollback_plan.tasks.length : 0} 个
           </div>
-        ) : null}
-      </div>
+        </section>
 
-      <div className="graph-detail-panel">
-        <div className="mini-title text-blue">Selected Step</div>
-        <div className="detail-title">{String(selectedNode?.name ?? selectedNode?.id ?? '暂无步骤')}</div>
-        <div className="muted">{String(selectedNode?.stage ?? execution.mode)}</div>
-        <div className="graph-detail-meta">
-          <span className="mini-chip text-violet">{String(selectedNode?.type ?? 'node')}</span>
-          <span className="mini-chip text-orange">{selectedTask?.requires_approval ? 'requires approval' : 'automation ready'}</span>
-        </div>
-        {selectedTask ? (
-          <div className="graph-meta-grid">
-            <div className="graph-meta-item">
-              <span className="muted">shell</span>
-              <strong>{selectedTask.shell || 'N/A'}</strong>
-            </div>
-            <div className="graph-meta-item">
-              <span className="muted">api</span>
-              <strong>{selectedTask.api || 'N/A'}</strong>
-            </div>
+        <section className="graph-detail-panel execution-detail-panel">
+          <div className="mini-title text-blue">当前动作</div>
+          <div className="detail-title">{String(selectedNode?.name ?? selectedNode?.id ?? '暂无动作')}</div>
+          <div className="muted">
+            第 {selectedStepIndex >= 0 ? selectedStepIndex + 1 : 1} 步 / {orderedNodes.length} 步
           </div>
-        ) : null}
-      </div>
-
-      <div className="task-list">
-        {execution.tasks.map((task) => (
-          <article key={task.task_id} className="task-item">
-            <div className="task-main">
-              <div className="task-title">{task.name}</div>
-              <div className="task-tags">
-                <span className="mini-chip text-blue">{task.stage}</span>
-                <span className="mini-chip text-violet">{task.mode}</span>
-                <span className="mini-chip text-orange">{task.execution_type}</span>
+          <div className="graph-detail-meta">
+            <span className="mini-chip text-violet">{String(selectedNode?.type ?? 'node')}</span>
+            <span className="mini-chip text-blue">{String(selectedNode?.stage ?? execution.mode)}</span>
+            <span className="mini-chip text-orange">{selectedTask?.requires_approval ? '需审批' : '可直接执行'}</span>
+          </div>
+          <div className="muted execution-section-note">
+            {selectedTask?.requires_approval ? '该动作进入执行前需要人工审批。' : '该动作可按当前策略直接执行。'}
+          </div>
+          {selectedTask ? (
+            <>
+              <div className="graph-meta-grid execution-detail-grid">
+                <div className="graph-meta-item">
+                  <span className="muted">阶段</span>
+                  <strong>{selectedTask.stage || 'N/A'}</strong>
+                </div>
+                <div className="graph-meta-item">
+                  <span className="muted">动作类型</span>
+                  <strong>{String(selectedNode?.type ?? 'N/A')}</strong>
+                </div>
+                <div className="graph-meta-item">
+                  <span className="muted">执行方式</span>
+                  <strong>{selectedTask.execution_type || 'N/A'}</strong>
+                </div>
+                <div className="graph-meta-item">
+                  <span className="muted">耗时</span>
+                  <strong>{selectedTask.estimated_cost_minutes} min</strong>
+                </div>
               </div>
-            </div>
-            <div className="task-meta">
-              <span>{task.estimated_cost_minutes} min</span>
-              <span>{task.requires_approval ? '需审批' : '自动化'}</span>
-            </div>
-          </article>
-        ))}
+
+              {selectedTask.description ? (
+                <div className="muted execution-section-note">{selectedTask.description}</div>
+              ) : null}
+
+              <div className="execution-countermeasure-block">
+                <div className="execution-countermeasure-head">
+                  <div>
+                    <div className="mini-title text-orange">威胁反制</div>
+                    <div className="muted execution-section-note">
+                      {selectedCountermeasure
+                        ? `后端可生成 ${selectedCountermeasure.kind || 'generic'} 反制预案，并按开关决定是否允许下发。`
+                        : '当前动作缺少反制元数据，后端会退化为通用反制预案。'}
+                    </div>
+                  </div>
+                  <div className="execution-countermeasure-actions">
+                    <button
+                      type="button"
+                      className="hunt-ghost-button"
+                      disabled={countermeasurePending}
+                      onClick={() => void handleCountermeasure(false)}
+                    >
+                      {countermeasurePending ? '处理中...' : '反制预演'}
+                    </button>
+                    <button
+                      type="button"
+                      className="hunt-rag-button"
+                      disabled={countermeasurePending || selectedTask.requires_approval}
+                      onClick={() => void handleCountermeasure(true)}
+                    >
+                      {selectedTask.requires_approval ? '需审批' : '下发反制'}
+                    </button>
+                  </div>
+                </div>
+
+                {selectedCountermeasure ? (
+                  <div className="execution-countermeasure-tags">
+                    <span className="mini-chip text-orange">{selectedCountermeasure.kind || 'generic'}</span>
+                    <span className="mini-chip text-blue">{selectedCountermeasure.mode || execution.mode}</span>
+                    <span className="mini-chip text-violet">
+                      {selectedCountermeasure.target_assets[0] || '未指定资产'}
+                    </span>
+                  </div>
+                ) : null}
+
+                {countermeasureError ? <div className="hunt-rag-error">{countermeasureError}</div> : null}
+
+                {resolvedCountermeasureState.message ? (
+                  <div className="execution-countermeasure-result">
+                    <div className="execution-countermeasure-status">
+                      <span className="mini-chip text-orange">{resolvedCountermeasureState.status}</span>
+                      {selectedCountermeasure?.applied ? <span className="mini-chip text-blue">已同步后端</span> : null}
+                      {resolvedCountermeasureState.operationId ? (
+                        <span className="muted">operation: {resolvedCountermeasureState.operationId}</span>
+                      ) : null}
+                    </div>
+                    <div className="muted execution-section-note">{resolvedCountermeasureState.message}</div>
+                    {selectedCountermeasure?.executed_at ? (
+                      <div className="muted execution-section-note">executed_at: {selectedCountermeasure.executed_at}</div>
+                    ) : null}
+                    {resolvedCountermeasureState.steps.length > 0 ? (
+                      <div className="execution-countermeasure-list">
+                        {resolvedCountermeasureState.steps.map((item, index) => (
+                          <div key={`${item}-${index}`} className="execution-countermeasure-item">
+                            {item}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {resolvedCountermeasureState.safeguards.length > 0 ? (
+                      <div className="execution-countermeasure-list">
+                        {resolvedCountermeasureState.safeguards.map((item, index) => (
+                          <div key={`${item}-${index}`} className="execution-countermeasure-item is-safeguard">
+                            {item}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </>
+          ) : (
+            <div className="muted">暂无动作详情。</div>
+          )}
+        </section>
       </div>
     </section>
   )

@@ -2,6 +2,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from backend.app.api_server import COUNTERMEASURE_STATE_STORE, create_frontend_api_app
 from backend.app.domain.config import ModelConfig, PlannerConfig, RuleGenerationConfig
 from backend.app.domain.models import Action, Incident, IOC, RolloutResult, StateVector, ThreatIntel
 from backend.app.engine.layered_agents import ProfessionalLayeredAgents
@@ -199,6 +200,7 @@ class PerformanceExplainabilityTests(unittest.TestCase):
         self.assertIn("playbook_id", executable.get("playbook", {}))
         self.assertTrue(executable.get("summary", {}).get("has_shell"))
         self.assertTrue(executable.get("summary", {}).get("has_api"))
+        self.assertGreaterEqual(len(executable.get("countermeasures", [])), 1)
         orchestration = executable.get("orchestration", {})
         self.assertIn("graph_id", orchestration)
         self.assertGreaterEqual(len(orchestration.get("nodes", [])), 2)
@@ -287,6 +289,148 @@ class PerformanceExplainabilityTests(unittest.TestCase):
         self.assertIn("incident_overview", payload)
         self.assertIn("case_memory", payload)
         self.assertIn("orchestration", payload)
+        self.assertIn("countermeasures", payload["execution"])
+
+    def test_countermeasure_api_preview(self) -> None:
+        COUNTERMEASURE_STATE_STORE.clear()
+        app = create_frontend_api_app()
+        client = app.test_client()
+
+        response = client.post(
+            "/api/execution/countermeasure",
+            json={
+                "task": {
+                    "task_id": "task-a1-1",
+                    "name": "隔离 db-prod-01 的对外连接",
+                    "stage": "containment",
+                    "execution_type": "hybrid",
+                    "shell": "iptables -A OUTPUT -d 198.51.100.23 -j DROP",
+                    "api": "POST /edr/isolate?asset=db-prod-01",
+                    "target_assets": ["db-prod-01"],
+                    "capability_tags": ["network_isolation"],
+                    "requires_approval": False,
+                },
+                "incident": _incident().to_dict(),
+                "guardrails": ["仅允许对当前事件关联资产下发反制"],
+                "playbook": {"rollback_hint": "撤销隔离策略并恢复网络连通性"},
+                "apply": False,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["status"], "preview_ready")
+        self.assertEqual(payload["kind"], "network_isolation")
+        self.assertGreaterEqual(len(payload["steps"]), 3)
+
+    def test_countermeasure_api_apply_requires_switch(self) -> None:
+        COUNTERMEASURE_STATE_STORE.clear()
+        app = create_frontend_api_app()
+        client = app.test_client()
+
+        response = client.post(
+            "/api/execution/countermeasure",
+            json={
+                "task": {
+                    "task_id": "task-a1-1",
+                    "name": "恢复 db-prod-01 关键服务并验证",
+                    "stage": "restoration",
+                    "execution_type": "api",
+                    "api": "POST /ops/recover?asset=db-prod-01",
+                    "target_assets": ["db-prod-01"],
+                    "capability_tags": ["service_recovery"],
+                    "requires_approval": False,
+                },
+                "incident": _incident().to_dict(),
+                "apply": True,
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)
+        payload = response.get_json()
+        self.assertEqual(payload["status"], "blocked")
+
+        with patch.dict("os.environ", {"SENTRIX_ENABLE_ACTIVE_RESPONSE": "true"}):
+            enabled_response = client.post(
+                "/api/execution/countermeasure",
+                json={
+                    "task": {
+                        "task_id": "task-a1-1",
+                        "name": "恢复 db-prod-01 关键服务并验证",
+                        "stage": "restoration",
+                        "execution_type": "api",
+                        "api": "POST /ops/recover?asset=db-prod-01",
+                        "target_assets": ["db-prod-01"],
+                        "capability_tags": ["service_recovery"],
+                        "requires_approval": False,
+                    },
+                    "incident": _incident().to_dict(),
+                    "apply": True,
+                },
+            )
+
+        self.assertEqual(enabled_response.status_code, 202)
+        enabled_payload = enabled_response.get_json()
+        self.assertEqual(enabled_payload["status"], "queued")
+        self.assertTrue(enabled_payload["applied"])
+
+    def test_frontend_payload_receives_synced_countermeasure_state(self) -> None:
+        COUNTERMEASURE_STATE_STORE.clear()
+        app = create_frontend_api_app()
+        client = app.test_client()
+
+        client.post(
+            "/api/execution/countermeasure",
+            json={
+                "case_id": "case-sync-1",
+                "task": {
+                    "task_id": "task-a1-1",
+                    "name": "隔离 db-prod-01 的对外连接",
+                    "stage": "containment",
+                    "execution_type": "hybrid",
+                    "target_assets": ["db-prod-01"],
+                    "capability_tags": ["network_isolation"],
+                    "requires_approval": False,
+                },
+                "incident": _incident().to_dict(),
+                "apply": False,
+            },
+        )
+
+        fake_result = {
+            "frontend_payload": {
+                "execution": {
+                    "countermeasures": [
+                        {
+                            "countermeasure_id": "cm-task-a1-1",
+                            "task_id": "task-a1-1",
+                            "title": "隔离 db-prod-01 的对外连接",
+                            "description": "desc",
+                            "kind": "network_isolation",
+                            "stage": "containment",
+                            "mode": "hybrid",
+                            "status": "ready",
+                            "target_assets": ["db-prod-01"],
+                            "capability_tags": ["network_isolation"],
+                            "requires_approval": False,
+                        }
+                    ],
+                    "summary": {},
+                },
+                "case_memory": {"case_id": "case-sync-1"},
+            },
+            "case_memory": {"case_id": "case-sync-1"},
+            "response": {"executable": {"countermeasures": [], "summary": {}}},
+        }
+
+        with patch("backend.app.api_server.run_pipeline_dataset", return_value=fake_result):
+            response = client.get("/api/frontend-payload")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        countermeasure = payload["frontend_payload"]["execution"]["countermeasures"][0]
+        self.assertEqual(countermeasure["status"], "preview_ready")
+        self.assertIn("预演", countermeasure["status_message"])
 
     def test_case_memory_record_search_and_manual_correction(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

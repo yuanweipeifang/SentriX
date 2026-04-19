@@ -90,6 +90,7 @@ export interface HuntPanel {
 export interface ExecutionTask {
   task_id: string
   name: string
+  description: string
   execution_type: string
   parallel_group: string
   mode: string
@@ -98,7 +99,30 @@ export interface ExecutionTask {
   api: string
   estimated_cost_minutes: number
   target_assets: string[]
+  capability_tags: string[]
+  countermeasure_kind: string
   requires_approval: boolean
+}
+
+export interface CountermeasurePreview {
+  countermeasure_id: string
+  task_id: string
+  title: string
+  description: string
+  kind: string
+  stage: string
+  mode: string
+  status: string
+  command_preview: string
+  api_preview: string
+  target_assets: string[]
+  capability_tags: string[]
+  requires_approval: boolean
+  status_message: string
+  operation_id: string
+  executed_at: string
+  provider: string
+  applied: boolean
 }
 
 export interface ExecutionPanel {
@@ -106,13 +130,25 @@ export interface ExecutionPanel {
   guardrails: string[]
   playbook: Record<string, unknown>
   tasks: ExecutionTask[]
+  countermeasures: CountermeasurePreview[]
   summary: Record<string, unknown>
+}
+
+export interface OrchestrationNode {
+  id: string
+  type: string
+  name: string
+  stage: string
+  execution_type: string
+  mode: string
+  parallel_group: string
+  requires_approval: boolean
 }
 
 export interface OrchestrationGraph {
   graph_id: string
   strategy: string
-  nodes: Record<string, unknown>[]
+  nodes: OrchestrationNode[]
   edges: Record<string, unknown>[]
   approval_nodes: Record<string, unknown>[]
   rollback_plan: Record<string, unknown>
@@ -132,6 +168,28 @@ export interface HistoricalCasePanel {
   benign_like_count: number
   malicious_like_count: number
   cases: HistoricalCaseItem[]
+}
+
+export interface RuleRecord {
+  rule_id: string
+  title: string
+  rule_type: string
+  pattern: string
+  ttp: string
+  severity: number
+  confidence: number
+  source: string
+  version: string
+  source_url: string
+  updated_at: string
+}
+
+export interface RulesPanel {
+  total: number
+  page: number
+  page_size: number
+  db_path: string
+  items: RuleRecord[]
 }
 
 export interface CaseMemoryPanel {
@@ -174,13 +232,14 @@ export interface FrontendPayload {
   hunt: HuntPanel
   execution: ExecutionPanel
   orchestration: OrchestrationGraph
+  rules: RulesPanel
   case_memory: CaseMemoryPanel
   observability: ObservabilityPanel
 }
 
 export interface AiPanelMessage {
   id: string
-  role: 'system' | 'assistant' | 'insight'
+  role: 'system' | 'assistant' | 'insight' | 'user'
   title: string
   content: string
   meta?: string

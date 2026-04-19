@@ -1,30 +1,13 @@
 import { useState } from 'react'
 import './App.css'
-import { DataStatusBanner } from './components/common/DataStatusBanner'
 import { AIPanel } from './components/layout/AIPanel'
 import { SidebarNav } from './components/layout/SidebarNav'
 import { TopBar } from './components/layout/TopBar'
 import { WorkspaceContent } from './components/pages/WorkspaceContent'
-import { SummaryCards } from './components/panels/SummaryCards'
 import { useDashboardData } from './hooks/useDashboardData'
 
-const stageToneMap: Record<string, string> = {
-  detection: 'tone-danger',
-  analysis: 'tone-info',
-  response: 'tone-primary',
-  audit: 'tone-success',
-}
-
-const cardToneMap: Record<string, string> = {
-  danger: 'tone-danger',
-  primary: 'tone-primary',
-  info: 'tone-info',
-  success: 'tone-success',
-  warning: 'tone-warning',
-  default: 'tone-default',
-}
-
 const navAccentMap: Record<string, string> = {
+  home: 'nav-accent-cyan',
   dashboard: 'nav-accent-blue',
   analysis: 'nav-accent-cyan',
   evidence: 'nav-accent-violet',
@@ -35,20 +18,20 @@ const navAccentMap: Record<string, string> = {
 }
 
 const pageMetaMap: Record<string, { title: string; subtitle: string; tone: string }> = {
+  home: {
+    title: '系统首页',
+    subtitle: '实时展示后端运行日志、关键阶段状态与核心结论摘要。',
+    tone: 'tone-info',
+  },
   dashboard: {
     title: '总览仪表盘',
-    subtitle: '汇总关键卡片、执行状态、案例库与系统可观测性。',
+    subtitle: '实时展示系统运行状态、关键阶段日志与核心风险结果，帮助用户快速理解当前后端工作情况。',
     tone: 'tone-primary',
   },
   analysis: {
     title: '事件研判',
-    subtitle: '聚焦威胁分析、置信度、证据与响应决策。',
+    subtitle: '聚焦证据图谱，展示事件根节点、证据节点与关联关系。',
     tone: 'tone-violet',
-  },
-  evidence: {
-    title: '证据图谱',
-    subtitle: '查看事件根节点、证据节点与原始日志关系。',
-    tone: 'tone-info',
   },
   hunt: {
     title: '猎捕查询',
@@ -61,8 +44,8 @@ const pageMetaMap: Record<string, { title: string; subtitle: string; tone: strin
     tone: 'tone-primary',
   },
   history: {
-    title: '历史案例',
-    subtitle: '对照历史样本、人工修正标签与案例记忆库反馈。',
+    title: '攻击规则',
+    subtitle: '浏览规则库、按字段检索并查看规则置信度与来源信息。',
     tone: 'tone-violet',
   },
   settings: {
@@ -73,41 +56,55 @@ const pageMetaMap: Record<string, { title: string; subtitle: string; tone: strin
 }
 
 function App() {
-  const [selectedNavId, setSelectedNavId] = useState('analysis')
-  const { ui, loadState, errorMessage } = useDashboardData()
+  const [selectedNavId, setSelectedNavId] = useState('home')
+  const { ui, refreshUi } = useDashboardData()
   const payload = ui.frontendPayload
   const currentPage = pageMetaMap[selectedNavId] ?? pageMetaMap.analysis
 
   return (
-    <div className="app-shell">
-      <SidebarNav
-        nav={ui.nav}
-        selectedNavId={selectedNavId}
-        schemaVersion={payload.schema_version}
-        caseId={payload.case_memory.case_id}
-        navAccentMap={navAccentMap}
-        onSelect={setSelectedNavId}
-      />
-
-      <main className="workspace">
-        <TopBar
-          title={currentPage.title}
-          subtitle={currentPage.subtitle}
-          tone={currentPage.tone}
-          source={payload.incident_overview.source}
-          assetCount={payload.incident_overview.affected_assets.length}
-        />
-        <DataStatusBanner loadState={loadState} errorMessage={errorMessage} />
-        <SummaryCards cards={payload.cards} cardToneMap={cardToneMap} />
-        <WorkspaceContent
-          payload={payload}
-          selectedNavId={selectedNavId}
+    <div className="app-scene">
+      <div className="app-shell">
+        <SidebarNav
           nav={ui.nav}
-          stageToneMap={stageToneMap}
+          selectedNavId={selectedNavId}
+          assetCount={payload.incident_overview.affected_assets.length}
+          ruleCount={payload.rules.total}
+          navAccentMap={navAccentMap}
+          onSelect={setSelectedNavId}
         />
-      </main>
 
-      <AIPanel title={ui.aiPanel.title} subtitle={ui.aiPanel.subtitle} messages={ui.aiPanel.messages} />
+        <main className="workspace">
+          <TopBar
+            title={currentPage.title}
+            subtitle={currentPage.subtitle}
+            source={payload.incident_overview.source}
+            assetCount={payload.incident_overview.affected_assets.length}
+            tone={currentPage.tone}
+          />
+          <div className="workspace-scroll">
+            <WorkspaceContent
+              payload={payload}
+              aiMessages={ui.aiPanel.messages}
+              selectedNavId={selectedNavId}
+              nav={ui.nav}
+              onNavigate={setSelectedNavId}
+              onRefreshData={refreshUi}
+            />
+          </div>
+        </main>
+
+        <AIPanel
+          title={ui.aiPanel.title}
+          subtitle={ui.aiPanel.subtitle}
+          messages={ui.aiPanel.messages}
+          context={{
+            pageTitle: currentPage.title,
+            eventSummary: payload.incident_overview.event_summary,
+            topThreat: payload.cards[0]?.value,
+            recommendedAction: payload.cards[1]?.value,
+          }}
+        />
+      </div>
     </div>
   )
 }

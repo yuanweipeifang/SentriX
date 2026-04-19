@@ -444,6 +444,7 @@ def _build_frontend_payload(result: Dict) -> Dict:
             "guardrails": executable.get("guardrails", []),
             "playbook": executable.get("playbook", {}),
             "tasks": executable.get("tasks", []),
+            "countermeasures": executable.get("countermeasures", []),
             "summary": executable.get("summary", {}),
         },
         "orchestration": {

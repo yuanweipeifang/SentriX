@@ -38,3 +38,4 @@ frontend/.env.*
 .vscode/
 .env
 .env.*
+logs/

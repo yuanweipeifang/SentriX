@@ -1,28 +1,27 @@
 :root {
-  --bg-base: #040814;
-  --bg-gradient-top: #07101f;
-  --bg-gradient-bottom: #040813;
-  --panel-bg: #0b1120;
-  --panel-bg-elevated: #10182c;
-  --text-strong: #ecf3ff;
-  --text-soft: #95a7c6;
-  --text-faint: #64748b;
-  --border-subtle: rgba(148, 163, 184, 0.14);
+  --bg-base: #000000;
+  --bg-gradient-top: #000000;
+  --bg-gradient-bottom: #000000;
+  --panel-bg: #06080e;
+  --panel-bg-elevated: #0b0f17;
+  --text-strong: #f5f7fb;
+  --text-soft: #8b95a7;
+  --text-faint: #677488;
+  --border-subtle: rgba(160, 205, 255, 0.12);
   --cyan: #22d3ee;
-  --blue: #38bdf8;
+  --blue: #3b82f6;
   --violet: #8b5cf6;
   --danger: #f87171;
   --success: #4ade80;
   --warning: #fbbf24;
-  --sans: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --sans: Consolas, 'Microsoft YaHei', '微软雅黑', 'PingFang SC', 'Noto Sans CJK SC', sans-serif;
+  --mono: Consolas, 'Microsoft YaHei', '微软雅黑', monospace;
 
   color-scheme: dark;
-  font: 15px/1.58 var(--sans);
-  letter-spacing: 0.012em;
+  font: 18.75px/1.58 var(--sans);
+  letter-spacing: 0.006em;
   color: var(--text-soft);
-  background: radial-gradient(circle at top, rgba(17, 76, 128, 0.26), transparent 30%),
-    linear-gradient(180deg, var(--bg-gradient-top) 0%, var(--bg-gradient-bottom) 100%);
+  background: #000;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -37,14 +36,14 @@ html,
 body,
 #root {
   margin: 0;
+  height: 100vh;
   min-height: 100vh;
+  overflow: hidden;
 }
 
 body {
-  background:
-    radial-gradient(circle at 15% 20%, rgba(34, 211, 238, 0.08), transparent 25%),
-    radial-gradient(circle at 85% 15%, rgba(139, 92, 246, 0.08), transparent 25%),
-    linear-gradient(180deg, var(--bg-gradient-top) 0%, var(--bg-gradient-bottom) 100%);
+  background: #000;
+  font-family: var(--sans);
 }
 
 button,
@@ -52,6 +51,7 @@ input,
 textarea,
 select {
   font: inherit;
+  font-family: var(--sans);
 }
 
 h1,
@@ -66,8 +66,8 @@ h1,
 h2,
 h3,
 h4 {
-  line-height: 1.18;
-  letter-spacing: -0.015em;
+  line-height: 1.06;
+  letter-spacing: -0.03em;
 }
 
 a {
@@ -76,4 +76,5 @@ a {
 
 #root {
   min-height: 100vh;
+  overflow: hidden;
 }

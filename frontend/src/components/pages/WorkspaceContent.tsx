@@ -1,112 +1,141 @@
-import { useEffect, useState } from 'react'
+import type { AiPanelMessage, DashboardNavItem, FrontendPayload } from '../../types/frontendPayload'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { MetricRow } from '../common/MetricRow'
 import { SectionTitle } from '../common/SectionTitle'
-import { ConfidencePanel } from '../panels/ConfidencePanel'
+import { DashboardMonitor } from '../panels/DashboardMonitor'
 import { EvidenceGraphPanel } from '../panels/EvidenceGraphPanel'
 import { HistoryPanel } from '../panels/HistoryPanel'
+import { HomeRuntimePanel } from '../panels/HomeRuntimePanel'
 import { HuntPanel } from '../panels/HuntPanel'
 import { OrchestrationPanel } from '../panels/OrchestrationPanel'
-import { TimelinePanel } from '../panels/TimelinePanel'
-import type { DashboardNavItem, FrontendPayload } from '../../types/frontendPayload'
+import type { HuntBridgePayload } from '../../types/huntBridge'
+import {
+  getSystemSettings,
+  updateSystemSettings,
+  type SystemSettings,
+  type SystemSettingsResponse,
+} from '../../services/systemSettingsApi'
 
 interface WorkspaceContentProps {
   payload: FrontendPayload
+  aiMessages: AiPanelMessage[]
   selectedNavId: string
   nav: DashboardNavItem[]
-  stageToneMap: Record<string, string>
+  onNavigate?: (navId: string) => void
+  onRefreshData?: () => Promise<void>
 }
 
 export function WorkspaceContent({
   payload,
+  aiMessages,
   selectedNavId,
   nav,
-  stageToneMap,
+  onNavigate,
+  onRefreshData,
 }: WorkspaceContentProps) {
   const [selectedHuntId, setSelectedHuntId] = useState<string>(payload.hunt.tabs[0]?.id ?? '')
+  const [huntBridgePayload, setHuntBridgePayload] = useState<HuntBridgePayload | null>(null)
+  const [settingsData, setSettingsData] = useState<SystemSettingsResponse | null>(null)
+  const [settingsDraft, setSettingsDraft] = useState<SystemSettings | null>(null)
+  const [settingsLoading, setSettingsLoading] = useState(false)
+  const [settingsSaving, setSettingsSaving] = useState(false)
+  const [settingsMessage, setSettingsMessage] = useState('')
 
   useEffect(() => {
     setSelectedHuntId(payload.hunt.tabs[0]?.id ?? '')
   }, [payload.hunt.tabs])
 
+  const loadSystemSettings = useCallback(async () => {
+    setSettingsLoading(true)
+    setSettingsMessage('')
+    try {
+      const data = await getSystemSettings()
+      setSettingsData(data)
+      setSettingsDraft(data.settings)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '加载系统设置失败'
+      setSettingsMessage(message)
+    } finally {
+      setSettingsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (selectedNavId !== 'settings') {
+      return
+    }
+    void loadSystemSettings()
+  }, [selectedNavId, loadSystemSettings])
+
+  const hasSettingsChanges = useMemo(() => {
+    if (!settingsData || !settingsDraft) {
+      return false
+    }
+    return (
+      settingsData.settings.rules_default_page_size !== settingsDraft.rules_default_page_size ||
+      settingsData.settings.model_timeout_seconds !== settingsDraft.model_timeout_seconds ||
+      settingsData.settings.online_rag_enabled !== settingsDraft.online_rag_enabled ||
+      settingsData.settings.multi_agent_enabled !== settingsDraft.multi_agent_enabled
+    )
+  }, [settingsData, settingsDraft])
+
+  async function handleSaveSystemSettings() {
+    if (!settingsDraft) {
+      return
+    }
+    setSettingsSaving(true)
+    setSettingsMessage('')
+    try {
+      const data = await updateSystemSettings(settingsDraft)
+      setSettingsData(data)
+      setSettingsDraft(data.settings)
+      setSettingsMessage('系统设置已保存并应用。')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '保存系统设置失败'
+      setSettingsMessage(message)
+    } finally {
+      setSettingsSaving(false)
+    }
+  }
+
+  function handleSendNodeToHunt(bridge: HuntBridgePayload) {
+    setHuntBridgePayload(bridge)
+    onNavigate?.('hunt')
+  }
+
+  const renderHomePage = () => (
+    <section className="single-column-layout">
+      <HomeRuntimePanel payload={payload} aiMessages={aiMessages} />
+    </section>
+  )
+
   const renderDashboardPage = () => (
-    <section className="content-grid dashboard-grid">
-      <div className="main-column">
-        <EvidenceGraphPanel evidence={payload.evidence} />
-        <OrchestrationPanel execution={payload.execution} orchestration={payload.orchestration} />
-      </div>
-      <div className="side-column">
-        <ConfidencePanel confidence={payload.confidence} />
-        <TimelinePanel timeline={payload.timeline} stageToneMap={stageToneMap} />
-        <HistoryPanel caseMemory={payload.case_memory} />
-      </div>
+    <section className="dashboard-page-shell">
+      <DashboardMonitor payload={payload} />
     </section>
   )
 
   const renderAnalysisPage = () => (
-    <section className="content-grid">
-      <div className="main-column">
-        <EvidenceGraphPanel evidence={payload.evidence} />
-      </div>
-      <div className="side-column">
-        <ConfidencePanel confidence={payload.confidence} />
-        <TimelinePanel timeline={payload.timeline} stageToneMap={stageToneMap} />
-      </div>
-    </section>
-  )
-
-  const renderEvidencePage = () => (
     <section className="single-column-layout">
-      <EvidenceGraphPanel evidence={payload.evidence} />
-      <section className="panel">
-        <SectionTitle eyebrow="Evidence Details" title="证据节点详情" tone="eyebrow-blue" />
-        <div className="detail-grid">
-          {payload.evidence.nodes.map((node) => (
-            <article key={node.id} className="detail-card">
-              <div className="mini-title text-blue">{node.type}</div>
-              <div className="detail-title">{node.label}</div>
-              <div className="muted">{node.title}</div>
-            </article>
-          ))}
-        </div>
-      </section>
+      <EvidenceGraphPanel evidence={payload.evidence} onSendToHunt={handleSendNodeToHunt} />
     </section>
   )
 
   const renderExecutionPage = () => (
     <section className="single-column-layout">
-      <OrchestrationPanel execution={payload.execution} orchestration={payload.orchestration} />
-      <section className="panel">
-        <SectionTitle eyebrow="Orchestration" title="编排图摘要" tone="eyebrow-violet" />
-        <div className="detail-grid">
-          {payload.orchestration.nodes.map((node, index) => (
-            <article key={`${String(node.id ?? index)}`} className="detail-card">
-              <div className="mini-title text-violet">{String(node.type ?? 'node')}</div>
-              <div className="detail-title">{String(node.name ?? node.id ?? 'unnamed')}</div>
-              <div className="muted">{String(node.stage ?? payload.execution.mode)}</div>
-            </article>
-          ))}
-        </div>
-      </section>
+      <OrchestrationPanel
+        execution={payload.execution}
+        orchestration={payload.orchestration}
+        incident={payload.incident_overview}
+        caseId={payload.case_memory.case_id}
+        onRefreshData={onRefreshData}
+      />
     </section>
   )
 
   const renderHistoryPage = () => (
     <section className="single-column-layout">
-      <HistoryPanel caseMemory={payload.case_memory} />
-      <section className="panel">
-        <SectionTitle eyebrow="Review" title="人工复核清单" tone="eyebrow-orange" />
-        <div className="checklist-list">
-          {payload.checklist.map((item) => (
-            <div key={item.key} className="checklist-item">
-              <span className="checklist-marker" />
-              <div>
-                <div className="detail-title">{item.label}</div>
-                <div className="muted">状态：{item.status}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      <HistoryPanel rules={payload.rules} />
     </section>
   )
 
@@ -121,11 +150,95 @@ export function WorkspaceContent({
         </div>
       </section>
       <section className="panel">
+        <SectionTitle eyebrow="Runtime Settings" title="运行时系统设置" tone="eyebrow-blue" />
+        {settingsLoading ? <div className="note-item">正在加载系统设置...</div> : null}
+        {settingsDraft ? (
+          <div className="system-settings-grid">
+            <label className="system-settings-field">
+              <span>规则分页默认条数 (5-200)</span>
+              <input
+                type="number"
+                min={5}
+                max={200}
+                value={settingsDraft.rules_default_page_size}
+                onChange={(event) =>
+                  setSettingsDraft((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          rules_default_page_size: Math.max(5, Math.min(200, Number(event.target.value) || 5)),
+                        }
+                      : prev
+                  )
+                }
+              />
+            </label>
+            <label className="system-settings-field">
+              <span>模型超时秒数 (5-180)</span>
+              <input
+                type="number"
+                min={5}
+                max={180}
+                value={settingsDraft.model_timeout_seconds}
+                onChange={(event) =>
+                  setSettingsDraft((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          model_timeout_seconds: Math.max(5, Math.min(180, Number(event.target.value) || 5)),
+                        }
+                      : prev
+                  )
+                }
+              />
+            </label>
+            <label className="system-settings-field system-settings-switch">
+              <input
+                type="checkbox"
+                checked={settingsDraft.online_rag_enabled}
+                onChange={(event) =>
+                  setSettingsDraft((prev) => (prev ? { ...prev, online_rag_enabled: event.target.checked } : prev))
+                }
+              />
+              <span>启用在线 RAG 检索</span>
+            </label>
+            <label className="system-settings-field system-settings-switch">
+              <input
+                type="checkbox"
+                checked={settingsDraft.multi_agent_enabled}
+                onChange={(event) =>
+                  setSettingsDraft((prev) => (prev ? { ...prev, multi_agent_enabled: event.target.checked } : prev))
+                }
+              />
+              <span>启用多 Agent 协作</span>
+            </label>
+            <div className="settings-status">
+              <div>配置存储: {settingsData?.db_path || 'N/A'}</div>
+              <div>最近更新: {settingsData?.updated_at || 'N/A'}</div>
+            </div>
+            <div className="system-settings-actions">
+              <button type="button" className="ghost-button" onClick={() => void loadSystemSettings()} disabled={settingsSaving}>
+                重新加载
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => void handleSaveSystemSettings()}
+                disabled={settingsSaving || !hasSettingsChanges}
+              >
+                {settingsSaving ? '保存中...' : '保存设置'}
+              </button>
+            </div>
+          </div>
+        ) : null}
+        {settingsMessage ? <div className="note-item">{settingsMessage}</div> : null}
+      </section>
+      <section className="panel">
         <SectionTitle eyebrow="Safe Integration" title="真实数据接入说明" tone="eyebrow-blue" />
         <div className="notes-list">
-          <div className="note-item">页面通过 `normalizeFrontendPayload()` 消费数据，字段缺失时会回退默认值。</div>
-          <div className="note-item">模块支持 empty / partial / full 三态，不会因为单个 section 缺失直接白屏。</div>
-          <div className="note-item">左侧导航已是真实页面切换入口，第二轮可直接接路由。</div>
+          <div className="note-item">系统设置已支持持久化到后端数据库，不再是纯静态说明页。</div>
+          <div className="note-item">保存后会即时刷新 API 运行参数，规则分页默认值会立刻生效。</div>
+          <div className="note-item">模型超时、在线 RAG、多 Agent 开关在下一次任务执行时生效。</div>
         </div>
       </section>
     </section>
@@ -135,15 +248,22 @@ export function WorkspaceContent({
 
   return (
     <div key={selectedNavId} className="page-transition-wrap">
+      {selectedNav?.id === 'home' ? renderHomePage() : null}
       {selectedNav?.id === 'dashboard' ? renderDashboardPage() : null}
       {selectedNav?.id === 'analysis' ? renderAnalysisPage() : null}
-      {selectedNav?.id === 'evidence' ? renderEvidencePage() : null}
       {selectedNav?.id === 'hunt' ? (
         <section className="single-column-layout">
           <HuntPanel
             hunt={payload.hunt}
             selectedHuntId={selectedHuntId}
             onSelect={setSelectedHuntId}
+            ragContext={{
+              eventSummary: payload.incident_overview.event_summary,
+              topThreat: payload.cards[0]?.value,
+              affectedAssets: payload.incident_overview.affected_assets,
+              ioc: payload.incident_overview.ioc,
+            }}
+            graphBridge={huntBridgePayload}
             fullHeight
           />
         </section>
