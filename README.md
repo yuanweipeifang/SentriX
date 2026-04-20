@@ -12,6 +12,41 @@ with a React frontend for operational workflows.
 - Flask API mode for frontend integration.
 - Historical case memory and correction workflow.
 
+## 技术栈总览
+
+### 后端（Backend）
+
+- 语言与运行时: Python 3.10+
+- CLI: argparse（标准库）
+- Web API: Flask 3.x
+- LLM 编排与调用: LangChain、LangChain Community
+- 检索增强与规则情报存储: SQLite（sqlite3 标准库 + 本地 RAG 数据）
+- 在线检索: duckduckgo-search（并支持通过环境变量配置外部 Web Search Provider）
+- 终端输出增强: colorama
+- 配置管理: .env（工作区根目录优先，backend/.env 回退）
+- 模型生态支持: qwen（默认）、glm、deepseek（并保留 openai 兼容配置）
+
+### 前端（Frontend）
+
+- UI 框架: React 19
+- 语言: TypeScript 6
+- 构建与开发服务器: Vite 8（含 /api 反向代理到后端 8000 端口）
+- 代码质量: ESLint 9 + typescript-eslint + react-hooks + react-refresh
+- 包管理与脚本: npm（dev/build/lint/preview）
+
+### 数据与工程化
+
+- 数据输入: JSON 事件样本、CSV 流量数据集
+- 本地知识库: CVE、IOC、Rules（落地到 SQLite RAG 库）
+- 项目组织: 前后端分离（backend + frontend）
+- 推荐环境管理: Conda（用于 Python 依赖隔离）
+
+### 运行形态
+
+- 单次离线分析（CLI）
+- 数据集/CSV 行级分析与压力测试
+- API 服务模式（供前端页面联调）
+
 ## Repository Layout
 
 ```text
