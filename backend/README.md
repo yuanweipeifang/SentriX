@@ -39,7 +39,20 @@ python -m backend.app.main --rag-import-ioc-dir /home/kali/SentriX/backend/data/
 
 # Rule+evidence judgement on minimal csv dataset
 python -m backend.app.main --rag-eval-csv --csv-dataset-file /home/kali/SentriX/backend/dataset/test_10_no_label.csv --rag-eval-max-rows 10
+
+# LLM eval harness (keep heartbeat + colorful realtime output)
+conda run --no-capture-output -n sentrix python -m backend.app.main --eval-harness --eval-max-samples 20 --eval-start-index 0 --heartbeat-seconds 2
 ```
+
+### Eval Harness 输出说明（简洁终端 + 详细落盘）
+
+- 终端输出：
+  - 彩色阶段进度（`[EVAL xx]`）
+  - 样本简报（`[EVAL-SAMPLE]`）
+  - 汇总结果（`[EVAL-SUMMARY]`）
+  - 报告路径（`[EVAL-REPORT]`）
+- 详细数据文件：自动写入 `backend/logs/eval_harness_*.json` 与 `backend/logs/eval_harness_*.md`。
+- 映射诊断：报告内新增 `mapping_diagnostics`，用于定位 Incident 映射偏差来源（如 `audit_pass_but_pred_incident`）。
 
 ## Backend Skill Closed Loop
 

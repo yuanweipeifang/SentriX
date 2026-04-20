@@ -159,6 +159,9 @@ conda run -n sentrix python -m backend.app.main --rag-reindex
 
 # RAG smoke test
 conda run -n sentrix python -m backend.app.main --rag-smoke-test --dataset-file dataset/incident_examples_min.json --dataset-index 0
+
+# Run evaluation harness (concise console summary + detailed reports saved to backend/logs)
+conda run -n sentrix python -m backend.app.main --eval-harness --eval-max-samples 20 --eval-start-index 0
 ```
 
 For more backend options, see `backend/README.md`.

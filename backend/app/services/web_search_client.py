@@ -40,9 +40,11 @@ class WebSearchClient:
         self._cache: Dict[str, Tuple[float, List[Dict[str, Any]]]] = {}
         self._provider_state: Dict[str, Dict[str, float]] = {}
 
-    def enabled(self) -> bool:
-        if not self.model_config.enable_online_rag:
+    def enabled(self, force: bool = False) -> bool:
+        if not force and not self.model_config.enable_online_rag:
             return False
+        if force:
+            return any(self._provider_is_enabled(p) for p in self._provider_order())
         provider = self.model_config.web_search_provider.lower()
         if provider == "langchain_duckduckgo":
             return True
@@ -50,8 +52,8 @@ class WebSearchClient:
             return True
         return bool(self.model_config.web_search_endpoint) and bool(self.model_config.web_search_api_key)
 
-    def search(self, query: str, top_k: int | None = None) -> List[Dict[str, Any]]:
-        if not self.enabled():
+    def search(self, query: str, top_k: int | None = None, force: bool = False) -> List[Dict[str, Any]]:
+        if not self.enabled(force=force):
             return []
         clean_query = (query or "").strip()
         if not clean_query:

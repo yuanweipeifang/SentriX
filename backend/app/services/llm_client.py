@@ -15,6 +15,30 @@ class LLMClient:
 
     def __init__(self, config: Optional[ModelConfig] = None) -> None:
         self.config = config or ModelConfig()
+        self._usage_stats = {
+            "requests": 0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+        }
+
+    def reset_stats(self) -> None:
+        self._usage_stats = {
+            "requests": 0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+        }
+
+    def snapshot_stats(self) -> Dict[str, int]:
+        return dict(self._usage_stats)
+
+    def _record_usage(self, payload: Dict[str, Any]) -> None:
+        usage = payload.get("usage", {}) if isinstance(payload, dict) else {}
+        self._usage_stats["requests"] += 1
+        self._usage_stats["prompt_tokens"] += int(usage.get("prompt_tokens", 0) or 0)
+        self._usage_stats["completion_tokens"] += int(usage.get("completion_tokens", 0) or 0)
+        self._usage_stats["total_tokens"] += int(usage.get("total_tokens", 0) or 0)
 
     def generate_json(
         self,
@@ -52,6 +76,7 @@ class LLMClient:
         try:
             with urllib.request.urlopen(request, timeout=self.config.timeout_seconds) as response:
                 payload = json.loads(response.read().decode("utf-8"))
+            self._record_usage(payload)
             content = payload.get("choices", [{}])[0].get("message", {}).get("content", "")
             if isinstance(content, list):
                 content = "".join(str(x.get("text", "")) for x in content if isinstance(x, dict))
@@ -86,6 +111,7 @@ class LLMClient:
         try:
             with urllib.request.urlopen(request, timeout=self.config.timeout_seconds) as response:
                 payload = json.loads(response.read().decode("utf-8"))
+            self._record_usage(payload)
             content = payload.get("choices", [{}])[0].get("message", {}).get("content", "")
             if isinstance(content, list):
                 return "".join(str(x.get("text", "")) for x in content if isinstance(x, dict)).strip()

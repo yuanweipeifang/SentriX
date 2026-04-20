@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict, List
@@ -123,6 +124,174 @@ def _format_progress_event(message: str) -> str:
 
 def _clamp01(value: float) -> float:
     return round(max(0.0, min(1.0, float(value))), 4)
+
+
+def _infer_incident_decision(result: Dict) -> Dict:
+    audit = result.get("audit", {}) or {}
+    audit_result = str(audit.get("audit_result", "unknown")).lower()
+    blocked = not bool(result.get("execution_allowed", False))
+    is_incident = blocked or (audit_result in {"warning", "warn", "fail", "review"})
+    return {
+        "is_incident": is_incident,
+        "basis": {
+            "blocked": blocked,
+            "audit_result": audit_result,
+        },
+    }
+
+
+def _extract_attack_technique_id(text: str) -> str:
+    match = re.search(r"\b(T\d{4}(?:\.\d{3})?)\b", str(text or ""), flags=re.IGNORECASE)
+    return str(match.group(1)).upper() if match else "Unknown"
+
+
+def _map_attack_stage_and_tactic(technique_id: str, hint_text: str) -> Dict[str, str]:
+    tid = str(technique_id or "").upper()
+    text = f"{tid} {hint_text}".lower()
+    if tid.startswith("T1190") or "exploit" in text or "cve" in text:
+        return {"stage": "initial_access", "tactic": "Initial Access"}
+    if tid.startswith("T1059") or "command" in text or "script" in text:
+        return {"stage": "execution", "tactic": "Execution"}
+    if tid.startswith("T1071") or "dns" in text or "beacon" in text:
+        return {"stage": "command_and_control", "tactic": "Command and Control"}
+    if tid.startswith("T1005") or "collect" in text:
+        return {"stage": "collection", "tactic": "Collection"}
+    if "scan" in text or "discover" in text:
+        return {"stage": "discovery", "tactic": "Discovery"}
+    return {"stage": "discovery", "tactic": "Discovery"}
+
+
+def _build_attack_chain_mapping(result: Dict) -> List[Dict[str, str]]:
+    rag = result.get("rag", {}) or {}
+    layers = result.get("agent_layers", {}) or {}
+    rows: List[Dict[str, str]] = []
+
+    for item in (rag.get("rule_findings", []) or [])[:6]:
+        ttp = str(item.get("ttp", ""))
+        tid = _extract_attack_technique_id(ttp)
+        mapped = _map_attack_stage_and_tactic(tid, f"{item.get('pattern', '')} {item.get('rule_id', '')}")
+        rows.append(
+            {
+                "攻击阶段": mapped["stage"],
+                "ATT&CK战术": mapped["tactic"],
+                "技术ID": tid,
+                "技术描述": str(item.get("pattern", "")) or str(item.get("rule_id", "")) or "rule-based detection",
+            }
+        )
+
+    for item in (layers.get("prioritized_threats", []) or [])[:4] if isinstance(layers, dict) else []:
+        raw_ttp = str(item.get("ttp", ""))
+        tid = _extract_attack_technique_id(raw_ttp)
+        mapped = _map_attack_stage_and_tactic(tid, f"{item.get('threat', '')} {item.get('type', '')}")
+        rows.append(
+            {
+                "攻击阶段": mapped["stage"],
+                "ATT&CK战术": mapped["tactic"],
+                "技术ID": tid,
+                "技术描述": str(item.get("threat", "")) or "prioritized threat",
+            }
+        )
+
+    dedup: List[Dict[str, str]] = []
+    seen = set()
+    for row in rows:
+        key = (row.get("攻击阶段", ""), row.get("ATT&CK战术", ""), row.get("技术ID", ""), row.get("技术描述", ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        dedup.append(row)
+    return dedup[:10]
+
+
+def _build_exposure_surface_analysis(result: Dict) -> Dict:
+    incident = result.get("incident", {}) or {}
+    rag = result.get("rag", {}) or {}
+    audit = result.get("audit", {}) or {}
+    decision = result.get("incident_decision", {}) or _infer_incident_decision(result)
+
+    assets = list(incident.get("affected_assets", []) or [])
+    critical_assets = [x for x in assets if re.search(r"prod|db|core|auth|gateway|payment", str(x), re.IGNORECASE)]
+    max_cve_sev = max([float(x.get("severity", 0.0)) for x in (rag.get("cve_findings", []) or [])] or [0.0])
+    risk_score = 0
+    if bool(decision.get("is_incident", False)):
+        risk_score += 2
+    if str(audit.get("audit_result", "")).lower() in {"warning", "warn", "review", "fail"}:
+        risk_score += 1
+    if max_cve_sev >= 9.0:
+        risk_score += 2
+    elif max_cve_sev >= 7.0:
+        risk_score += 1
+    if critical_assets:
+        risk_score += 1
+
+    if risk_score >= 4:
+        level = "高"
+        desc = "存在高危暴露面信号（高危漏洞/关键资产/审计告警），建议立即收敛外部攻击面并优先处置。"
+    elif risk_score >= 2:
+        level = "中"
+        desc = "存在可利用暴露面或潜在风险路径，建议在变更窗口内完成加固与补丁核验。"
+    else:
+        level = "低"
+        desc = "当前暴露面以常规风险为主，持续监控并按基线策略维护即可。"
+
+    return {
+        "场景风险等级": level,
+        "场景风险等级说明": desc,
+        "暴露资产数": len(assets),
+        "关键资产数": len(critical_assets),
+        "最高CVE严重度": round(max_cve_sev, 2),
+    }
+
+
+def _build_ioc_indicator_analysis(result: Dict) -> List[Dict]:
+    rag = result.get("rag", {}) or {}
+    out: List[Dict] = []
+    cve_rows = rag.get("cve_findings", []) or []
+    for idx, row in enumerate(cve_rows, start=1):
+        cve = str(row.get("cve", "")).strip()
+        cwe_list = row.get("cwe", []) or []
+        cwe_text = ", ".join([str(x) for x in cwe_list if str(x).strip()])
+        software_versions = row.get("software_versions", []) or []
+        fixed_versions = row.get("fixed_versions", []) or []
+        vuln_alias = str(row.get("vuln_alias", "")).strip() or cve
+
+        out.append(
+            {
+                "记录": idx,
+                "指标": [
+                    {"名称": "CVE", "值": cve or "Unknown"},
+                    {"名称": "CWE", "值": cwe_text or "Unknown"},
+                    {"名称": "漏洞代号", "值": cve or "Unknown"},
+                    {"名称": "漏洞代号", "值": vuln_alias or "Unknown"},
+                    {"名称": "软件版本", "值": ", ".join([str(x) for x in software_versions]) or "Unknown"},
+                    {"名称": "修复版本", "值": ", ".join([str(x) for x in fixed_versions]) or "Unknown"},
+                ],
+            }
+        )
+
+    if not out:
+        out.append(
+            {
+                "记录": 1,
+                "指标": [
+                    {"名称": "CVE", "值": "Unknown"},
+                    {"名称": "CWE", "值": "Unknown"},
+                    {"名称": "漏洞代号", "值": "Unknown"},
+                    {"名称": "漏洞代号", "值": "Unknown"},
+                    {"名称": "软件版本", "值": "Unknown"},
+                    {"名称": "修复版本", "值": "Unknown"},
+                ],
+            }
+        )
+    return out
+
+
+def _build_deep_analysis(result: Dict) -> Dict:
+    return {
+        "攻击链ATT&CK映射": _build_attack_chain_mapping(result),
+        "暴露面分析": _build_exposure_surface_analysis(result),
+        "IOC指标": _build_ioc_indicator_analysis(result),
+    }
 
 
 def _build_confidence_model(result: Dict) -> Dict:
@@ -520,9 +689,12 @@ def build_concise_view(result: Dict) -> Dict:
         )
     execution_pkg = response.get("executable", {}) or {}
     frontend_explainability = result.get("frontend_explainability", {}) or {}
+    incident_decision = result.get("incident_decision", {}) or _infer_incident_decision(result)
+    deep_analysis = result.get("deep_analysis", {}) or _build_deep_analysis(result)
 
     return {
         "结论": {
+            "是否事件": bool(incident_decision.get("is_incident", False)),
             "可执行": result.get("execution_allowed", False),
             "审计结果": audit.get("audit_result", "unknown"),
             "推荐动作": best.get("action_name", ""),
@@ -614,6 +786,9 @@ def build_concise_view(result: Dict) -> Dict:
             "查询数": len(hunt_queries),
             "预览": hunt_preview,
         },
+        "攻击链ATT&CK映射": deep_analysis.get("攻击链ATT&CK映射", []),
+        "暴露面分析": deep_analysis.get("暴露面分析", {}),
+        "IOC指标": deep_analysis.get("IOC指标", []),
     }
 
 
@@ -693,9 +868,13 @@ class BackendWorkflow:
         rule_generator = components["rule_generator"]
         responder = components["responder"]
         auditor = components["auditor"]
+        llm_client = components["llm_client"]
         runtime_auditory = components["runtime_auditory"]
         layered_agents = components["layered_agents"]
         case_memory = components["case_memory"]
+
+        if hasattr(llm_client, "reset_stats"):
+            llm_client.reset_stats()
 
         emit(f"sample_load_start source={incident_meta.get('source', 'json')}", "blue")
         incident = preloaded_incident or skill_engine.run_stage("triage", ingest.load_from_json, input_file)
@@ -831,6 +1010,7 @@ class BackendWorkflow:
                 "provider": self.model_config.provider,
                 "model_name": self.model_config.model_name,
                 "endpoint": self.model_config.endpoint,
+                "token_usage": llm_client.snapshot_stats() if hasattr(llm_client, "snapshot_stats") else {},
             },
             "skill_runtime": skill_engine.runtime_info(),
             "multi_agent": {
@@ -846,6 +1026,8 @@ class BackendWorkflow:
             "rule_generation": generated_rules,
             "input_meta": incident_meta,
         }
+        result["incident_decision"] = _infer_incident_decision(result)
+        result["deep_analysis"] = _build_deep_analysis(result)
         result["evidence_trace_tree"] = _build_evidence_trace_tree(result)
         result["observability"] = _build_observability_snapshot(result)
         result["frontend_explainability"] = _build_frontend_explainability(result)
@@ -897,29 +1079,47 @@ class BackendWorkflow:
         return result
 
 
-def run_pipeline(input_file: str) -> dict:
+def run_pipeline(input_file: str, progress_callback: Callable[[str], None] | None = None) -> dict:
     incident_meta = {"source": "json", "path": input_file}
     project_root = str(Path(__file__).resolve().parents[3])
     workflow = BackendWorkflow.from_runtime(project_root=project_root)
-    return workflow.run(input_file=input_file, incident_meta=incident_meta)
+    return workflow.run(input_file=input_file, incident_meta=incident_meta, progress_callback=progress_callback)
 
 
-def run_pipeline_dataset(dataset_file: str, sample_index: int) -> dict:
+def run_pipeline_dataset(
+    dataset_file: str,
+    sample_index: int,
+    progress_callback: Callable[[str], None] | None = None,
+) -> dict:
     project_root = str(Path(__file__).resolve().parents[3])
     ingest = DataIngestion()
     incident, meta = ingest.load_from_dataset_json(dataset_file, sample_index)
     meta = {**meta, "path": dataset_file}
     workflow = BackendWorkflow.from_runtime(project_root=project_root)
-    return workflow.run(input_file=dataset_file, incident_meta=meta, preloaded_incident=incident)
+    return workflow.run(
+        input_file=dataset_file,
+        incident_meta=meta,
+        preloaded_incident=incident,
+        progress_callback=progress_callback,
+    )
 
 
-def run_pipeline_csv_dataset(csv_file: str, row_index: int) -> dict:
+def run_pipeline_csv_dataset(
+    csv_file: str,
+    row_index: int,
+    progress_callback: Callable[[str], None] | None = None,
+) -> dict:
     project_root = str(Path(__file__).resolve().parents[3])
     ingest = DataIngestion()
     incident, meta = ingest.load_from_csv_row(csv_file, row_index)
     meta = {**meta, "path": csv_file}
     workflow = BackendWorkflow.from_runtime(project_root=project_root)
-    return workflow.run(input_file=csv_file, incident_meta=meta, preloaded_incident=incident)
+    return workflow.run(
+        input_file=csv_file,
+        incident_meta=meta,
+        preloaded_incident=incident,
+        progress_callback=progress_callback,
+    )
 
 
 def run_stress_test(

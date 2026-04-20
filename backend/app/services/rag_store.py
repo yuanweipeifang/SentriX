@@ -79,6 +79,41 @@ class SQLiteRAGStore:
                 )
         return self.stats()
 
+    def upsert_documents(self, documents: List[RAGDocument]) -> Dict[str, Any]:
+        if not documents:
+            return {"upserted": 0, **self.stats()}
+        now = datetime.now(timezone.utc).isoformat()
+        doc_texts = [f"{doc.title} {doc.content}" for doc in documents]
+        vectors = self._embed_texts(doc_texts)
+        with self._managed_connect() as conn:
+            for doc in documents:
+                vector = doc.content_vector if doc.content_vector is not None else vectors.pop(0)
+                conn.execute(
+                    """
+                    INSERT INTO rag_documents (
+                        doc_type, text_key, title, content, content_vector_json, metadata_json, score_hint, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(doc_type, text_key) DO UPDATE SET
+                        title=excluded.title,
+                        content=excluded.content,
+                        content_vector_json=excluded.content_vector_json,
+                        metadata_json=excluded.metadata_json,
+                        score_hint=excluded.score_hint,
+                        updated_at=excluded.updated_at
+                    """,
+                    (
+                        doc.doc_type,
+                        doc.text_key,
+                        doc.title,
+                        doc.content,
+                        json.dumps(vector, ensure_ascii=False),
+                        json.dumps(doc.metadata, ensure_ascii=False),
+                        float(doc.score_hint),
+                        now,
+                    ),
+                )
+        return {"upserted": len(documents), **self.stats()}
+
     def stats(self) -> Dict[str, Any]:
         with self._managed_connect() as conn:
             total = conn.execute("SELECT COUNT(1) FROM rag_documents").fetchone()[0]

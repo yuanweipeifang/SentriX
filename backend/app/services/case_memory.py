@@ -42,6 +42,10 @@ class LocalCaseMemory:
         confidence = result.get("confidence_model", {}) or {}
         existing = next((row for row in rows if row.get("fingerprint") == fingerprint), None)
         existing = existing or {}
+        derived_label = self._derive_label(result)
+        manual_correction = existing.get("manual_correction", {}) if existing else {}
+        corrected_label = str((manual_correction or {}).get("label", "")).strip()
+        effective_label = corrected_label or derived_label
         payload = {
             "case_id": existing.get("case_id") if existing else f"case-{fingerprint[:12]}",
             "fingerprint": fingerprint,
@@ -55,9 +59,9 @@ class LocalCaseMemory:
             "source_ref": incident_meta.get("path", incident_meta.get("dataset_file", "")),
             "row_index": incident_meta.get("row_index"),
             "dataset_index": incident_meta.get("dataset_index"),
-            "label": self._derive_label(result),
-            "effective_label": existing.get("effective_label", self._derive_label(result)) if existing else self._derive_label(result),
-            "manual_correction": existing.get("manual_correction", {}) if existing else {},
+            "label": derived_label,
+            "effective_label": effective_label,
+            "manual_correction": manual_correction,
             "top_threat": self._top_threat(result),
             "best_action": (response.get("best_action", {}) or {}).get("action_name", ""),
             "audit_result": audit.get("audit_result", "unknown"),
@@ -165,9 +169,12 @@ class LocalCaseMemory:
     def _derive_label(result: Dict[str, Any]) -> str:
         audit_result = str((result.get("audit", {}) or {}).get("audit_result", "unknown")).lower()
         detection = float((result.get("confidence_model", {}) or {}).get("detection_confidence", 0.0))
-        if audit_result == "pass" and detection >= 0.75:
+        incident_decision = result.get("incident_decision", {}) or {}
+        if bool(incident_decision.get("is_incident", False)):
             return "malicious"
         if audit_result == "fail" and detection < 0.5:
+            return "benign"
+        if audit_result in {"pass", "review", "warn", "warning"} and detection < 0.75:
             return "benign"
         return "needs_review"
 

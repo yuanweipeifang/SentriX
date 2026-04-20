@@ -26,6 +26,7 @@ from .services.rag import (
     rebuild_rag_database,
 )
 from .services.case_memory import LocalCaseMemory
+from .services.eval_harness import run_eval_harness
 
 
 def _print_processing_logs(result: Dict[str, Any]) -> None:
@@ -36,6 +37,7 @@ def _print_processing_logs(result: Dict[str, Any]) -> None:
     response = result.get("response", {}) or {}
     audit = result.get("audit", {}) or {}
     layers = result.get("agent_layers", {}) or {}
+    rag = result.get("rag", {}) or {}
 
     print(f"\n{Fore.CYAN}[PROCESS]{Style.RESET_ALL} 模型运行信息")
     print(
@@ -106,6 +108,18 @@ def _print_processing_logs(result: Dict[str, Any]) -> None:
             f"score={prioritized[0].get('priority_score', 0.0)}"
         )
 
+    rag_ctx = rag.get("rag_context", {}) or {}
+    print(f"{Fore.CYAN}[PROCESS]{Style.RESET_ALL} 情报检索诊断")
+    print(
+        f"  cache_hit={bool(rag_ctx.get('cache_hit', False))}; "
+        f"local_match={int(rag_ctx.get('local_match_count', 0) or 0)}; "
+        f"online_forced={bool(rag_ctx.get('online_fallback_forced', False))}; "
+        f"trigger={str(rag_ctx.get('online_trigger_reason', 'not_forced'))}; "
+        f"online_findings={int(rag_ctx.get('online_findings_count', 0) or 0)}; "
+        f"online_cve_enriched={int(rag_ctx.get('online_cve_enriched_count', 0) or 0)}; "
+        f"db_upserted={int(rag_ctx.get('online_db_upserted', 0) or 0)}"
+    )
+
 
 def _run_with_heartbeat(task_name: str, interval_seconds: int, fn, *args, **kwargs):
     if interval_seconds <= 0:
@@ -122,10 +136,14 @@ def _run_with_heartbeat(task_name: str, interval_seconds: int, fn, *args, **kwar
             print(
                 f"{Fore.YELLOW}[HEARTBEAT]{Style.RESET_ALL} task={task_name}; "
                 f"pulse={pulse}; elapsed={elapsed}s; status=running"
+                , flush=True
             )
 
     worker = threading.Thread(target=_heartbeat_loop, daemon=True)
-    print(f"{Fore.BLUE}[HEARTBEAT]{Style.RESET_ALL} task={task_name}; status=start; interval={interval_seconds}s")
+    print(
+        f"{Fore.BLUE}[HEARTBEAT]{Style.RESET_ALL} task={task_name}; status=start; interval={interval_seconds}s",
+        flush=True,
+    )
     worker.start()
     try:
         result = fn(*args, **kwargs)
@@ -133,8 +151,15 @@ def _run_with_heartbeat(task_name: str, interval_seconds: int, fn, *args, **kwar
         stop_event.set()
         worker.join(timeout=0.2)
         elapsed = int(time.perf_counter() - started_at)
-        print(f"{Fore.GREEN}[HEARTBEAT]{Style.RESET_ALL} task={task_name}; status=stop; elapsed={elapsed}s")
+        print(
+            f"{Fore.GREEN}[HEARTBEAT]{Style.RESET_ALL} task={task_name}; status=stop; elapsed={elapsed}s",
+            flush=True,
+        )
     return result
+
+
+def _progress_printer(message: str) -> None:
+    print(message, flush=True)
 
 
 def main() -> None:
@@ -313,6 +338,28 @@ def main() -> None:
         help="Start Flask API service for frontend frontend_payload requests.",
     )
     parser.add_argument(
+        "--eval-harness",
+        action="store_true",
+        help="Run LLM evaluation harness on dataset and output concise summary.",
+    )
+    parser.add_argument(
+        "--eval-dataset-file",
+        default="",
+        help="Dataset JSON file for --eval-harness. Defaults to backend/dataset/incident_examples_min.json.",
+    )
+    parser.add_argument(
+        "--eval-max-samples",
+        type=int,
+        default=20,
+        help="Maximum samples for --eval-harness.",
+    )
+    parser.add_argument(
+        "--eval-start-index",
+        type=int,
+        default=0,
+        help="Start index for --eval-harness.",
+    )
+    parser.add_argument(
         "--api-host",
         default="127.0.0.1",
         help="Host for --serve-api.",
@@ -450,8 +497,71 @@ def main() -> None:
             dataset_index=args.dataset_index,
             csv_dataset_file=args.csv_dataset_file,
             csv_row_index=args.csv_row_index,
+            progress_callback=_progress_printer,
         )
         print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+
+    if args.eval_harness:
+        eval_file = args.eval_dataset_file or str(
+            Path(__file__).resolve().parents[1] / "dataset" / "incident_examples_min.json"
+        )
+        result = _run_with_heartbeat(
+            "eval_harness",
+            args.heartbeat_seconds,
+            run_eval_harness,
+            dataset_file=eval_file,
+            max_samples=args.eval_max_samples,
+            start_index=args.eval_start_index,
+        )
+        metrics = result.get("metrics", {}) or {}
+        effects = result.get("technical_effects", {}) or {}
+        mapping_diag = result.get("mapping_diagnostics", {}) or {}
+        concise = {
+            "dataset_file": result.get("dataset_file", ""),
+            "processed_samples": result.get("processed_samples", 0),
+            "metrics": {
+                "incident_yes_no_accuracy": ((metrics.get("incident_yes_no_accuracy", {}) or {}).get("value", 0.0)),
+                "mitre_match_f1": ((metrics.get("mitre_match_f1", {}) or {}).get("f1", 0.0)),
+                "audit_block_effectiveness": ((metrics.get("audit_block_effectiveness", {}) or {}).get("blocked_when_high_risk_pred", 0.0)),
+                "hallucination_rate": metrics.get("hallucination_rate", 0.0),
+                "latency_ms": metrics.get("latency_ms", {}),
+                "tokens": metrics.get("tokens", {}),
+            },
+            "technical_effects": {
+                "cache_hit_rate": effects.get("cache_hit_rate", {}),
+                "planner_early_stop_rate": effects.get("planner_early_stop_rate", 0.0),
+                "avg_rule_hit_count": effects.get("avg_rule_hit_count", 0.0),
+                "audit_fail_rate": effects.get("audit_fail_rate", 0.0),
+            },
+            "mapping_diagnostics": {
+                "incident_mismatch_count": mapping_diag.get("incident_mismatch_count", 0),
+                "incident_mismatch_rate": mapping_diag.get("incident_mismatch_rate", 0.0),
+                "reason_stats": mapping_diag.get("reason_stats", {}),
+            },
+            "report_files": result.get("report_files", {}),
+        }
+
+        print(f"{Fore.CYAN}[EVAL-SUMMARY]{Style.RESET_ALL} dataset={concise['dataset_file']}", flush=True)
+        print(
+            f"{Fore.CYAN}[EVAL-SUMMARY]{Style.RESET_ALL} samples={concise['processed_samples']}; "
+            f"incident_acc={concise['metrics']['incident_yes_no_accuracy']}; "
+            f"mitre_f1={concise['metrics']['mitre_match_f1']}; "
+            f"hallucination={concise['metrics']['hallucination_rate']}",
+            flush=True,
+        )
+        print(
+            f"{Fore.CYAN}[EVAL-SUMMARY]{Style.RESET_ALL} mismatch_count={concise['mapping_diagnostics']['incident_mismatch_count']}; "
+            f"mismatch_rate={concise['mapping_diagnostics']['incident_mismatch_rate']}; "
+            f"reasons={concise['mapping_diagnostics']['reason_stats']}",
+            flush=True,
+        )
+        print(
+            f"{Fore.MAGENTA}[EVAL-REPORT]{Style.RESET_ALL} json={concise['report_files'].get('json', '')}; "
+            f"md={concise['report_files'].get('markdown', '')}",
+            flush=True,
+        )
+        print(json.dumps(concise, ensure_ascii=False, indent=2))
         return
 
     if args.stress_test:
@@ -466,6 +576,7 @@ def main() -> None:
                 mode="csv",
                 max_samples=args.stress_max_samples,
                 start_index=args.stress_start_index,
+                progress_callback=_progress_printer,
             )
         else:
             if not args.dataset_file:
@@ -478,6 +589,7 @@ def main() -> None:
                 mode="dataset_json",
                 max_samples=args.stress_max_samples,
                 start_index=args.stress_start_index,
+                progress_callback=_progress_printer,
             )
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return
@@ -489,6 +601,7 @@ def main() -> None:
             run_pipeline_csv_dataset,
             args.csv_dataset_file,
             args.csv_row_index,
+            _progress_printer,
         )
     elif args.dataset_file:
         result = _run_with_heartbeat(
@@ -497,9 +610,16 @@ def main() -> None:
             run_pipeline_dataset,
             args.dataset_file,
             args.dataset_index,
+            _progress_printer,
         )
     else:
-        result = _run_with_heartbeat("pipeline", args.heartbeat_seconds, run_pipeline, args.input)
+        result = _run_with_heartbeat(
+            "pipeline",
+            args.heartbeat_seconds,
+            run_pipeline,
+            args.input,
+            _progress_printer,
+        )
 
     if not args.quiet:
         _print_processing_logs(result)

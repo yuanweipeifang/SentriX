@@ -79,10 +79,46 @@ class ThreatIntelligenceRetrieval:
             evidence_counter=evidence_counter,
         )
 
-        online_findings = self._retrieve_online_findings_via_langchain(incident, current_rule_hits=len(rule_findings))
+        # 本地优先增强：若已命中 RULE-CVE-* 规则，则优先在本地数据库中反推对应 CVE 详情。
+        cve_findings, evidence_counter = self._backfill_cves_from_rules(
+            cve_findings=cve_findings,
+            rule_findings=rule_findings,
+            evidence_counter=evidence_counter,
+        )
+
+        local_match_count = len(cve_findings) + len(ioc_findings) + len(asset_findings) + len(rule_findings)
+        auto_online_on_empty_local = os.getenv("ONLINE_RAG_AUTO_ON_EMPTY_LOCAL", "true").lower() == "true"
+        auto_online_on_empty_cve = os.getenv("ONLINE_RAG_AUTO_ON_EMPTY_CVE", "true").lower() == "true"
+        force_online = (auto_online_on_empty_local and local_match_count == 0) or (
+            auto_online_on_empty_cve and len(cve_findings) == 0
+        )
+
+        online_findings = self._retrieve_online_findings_via_langchain(
+            incident,
+            current_rule_hits=len(rule_findings),
+            force_online=force_online,
+        )
         if not online_findings:
-            online_findings = self._retrieve_online_findings_via_llm(incident)
+            online_findings = self._retrieve_online_findings_via_llm(incident, force_online=force_online)
         online_findings = self._deduplicate_and_fuse(online_findings, start_counter=evidence_counter)
+
+        online_cve_findings = self._enrich_cves_from_online(
+            incident=incident,
+            online_findings=online_findings,
+            existing_cves={str(x.get("cve", "")).upper() for x in cve_findings},
+            start_counter=evidence_counter + len(online_findings),
+            force_online=force_online,
+        )
+        if online_cve_findings:
+            cve_findings.extend(online_cve_findings)
+
+        persist_stats: Dict[str, Any] = {"upserted": 0}
+        if self.rag_store and (online_findings or online_cve_findings):
+            persist_stats = self._persist_online_findings_to_db(
+                online_findings=online_findings,
+                cve_findings=online_cve_findings,
+            )
+
         similar_cases = self._retrieve_similar_cases(incident)
         historical_feedback = self.case_memory.historical_feedback(incident)
         recommended_mitigations = self._derive_mitigations(rule_findings, cve_findings)
@@ -106,6 +142,15 @@ class ThreatIntelligenceRetrieval:
             "downgrade_reasons": _collect_risk_downgrade_reasons(incident),
             "downgrade_reason_details": _explain_risk_downgrade_reasons(_collect_risk_downgrade_reasons(incident)),
             "cache_hit": False,
+            "local_match_count": local_match_count,
+            "online_fallback_forced": force_online,
+            "online_trigger_reason": (
+                "empty_local" if (auto_online_on_empty_local and local_match_count == 0)
+                else ("empty_cve" if (auto_online_on_empty_cve and len(cve_findings) == 0) else "not_forced")
+            ),
+            "online_findings_count": len(online_findings),
+            "online_cve_enriched_count": len(online_cve_findings),
+            "online_db_upserted": int(persist_stats.get("upserted", 0) or 0),
         }
         compressed_context = self._compress(cve_findings, ioc_findings, asset_findings, rule_findings, online_findings)
         summary = "RAG检索完成（本地情报）"
@@ -272,6 +317,10 @@ class ThreatIntelligenceRetrieval:
                         "severity": payload.get("severity", 0),
                         "description": payload.get("description", ""),
                         "ttp": payload.get("ttp", ""),
+                        "cwe": payload.get("cwe", []) or [],
+                        "vuln_alias": payload.get("vuln_alias", str(cve).upper()),
+                        "software_versions": payload.get("software_versions", []) or [],
+                        "fixed_versions": payload.get("fixed_versions", []) or [],
                         "source_url": payload.get("source_url", f"https://nvd.nist.gov/vuln/detail/{str(cve).upper()}"),
                         "source_type": "sqlite_cve_db",
                     },
@@ -387,6 +436,10 @@ class ThreatIntelligenceRetrieval:
                         "severity": float(meta.get("severity", 0)),
                         "description": str(meta.get("description", "")),
                         "ttp": str(meta.get("ttp", "")),
+                        "cwe": list(meta.get("cwe", []) or []),
+                        "vuln_alias": str(meta.get("vuln_alias", cve_key)),
+                        "software_versions": list(meta.get("software_versions", []) or []),
+                        "fixed_versions": list(meta.get("fixed_versions", []) or []),
                         "evidence_id": f"EVID-{evidence_counter:04d}",
                         "source_url": str(meta.get("source_url", "")),
                         "source_type": str(meta.get("source_type", "sqlite_cve_db")),
@@ -534,12 +587,56 @@ class ThreatIntelligenceRetrieval:
 
         return cve_findings, ioc_findings, asset_findings, rule_findings, evidence_counter
 
-    def _retrieve_online_findings_via_langchain(self, incident: Incident, current_rule_hits: int) -> List[Dict[str, Any]]:
-        if not self.model_config.enable_online_rag:
+    def _backfill_cves_from_rules(
+        self,
+        cve_findings: List[Dict[str, Any]],
+        rule_findings: List[Dict[str, Any]],
+        evidence_counter: int,
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        existing_cve = {str(x.get("cve", "")).upper() for x in cve_findings}
+        extracted: List[str] = []
+        for row in rule_findings:
+            rule_id = str(row.get("rule_id", ""))
+            for m in re.findall(r"CVE[_-](\d{4})[_-](\d{4,7})", rule_id, flags=re.IGNORECASE):
+                extracted.append(f"CVE-{m[0]}-{m[1]}")
+            for m in re.findall(r"\bCVE-(\d{4})-(\d{4,7})\b", str(row.get("pattern", "")), flags=re.IGNORECASE):
+                extracted.append(f"CVE-{m[0]}-{m[1]}")
+
+        for cve_id in list(dict.fromkeys([x.upper() for x in extracted])):
+            if cve_id in existing_cve:
+                continue
+            payload = self.cve_db.get(cve_id, {}) or {}
+            cve_findings.append(
+                {
+                    "cve": cve_id,
+                    "severity": float(payload.get("severity", 0.0)),
+                    "description": str(payload.get("description", "")),
+                    "ttp": str(payload.get("ttp", "Unknown")),
+                    "cwe": list(payload.get("cwe", []) or []),
+                    "vuln_alias": str(payload.get("vuln_alias", cve_id)),
+                    "software_versions": list(payload.get("software_versions", []) or []),
+                    "fixed_versions": list(payload.get("fixed_versions", []) or []),
+                    "evidence_id": f"EVID-{evidence_counter:04d}",
+                    "source_url": str(payload.get("source_url", f"https://nvd.nist.gov/vuln/detail/{cve_id}")),
+                    "source_type": "local_rule_to_cve_backfill",
+                }
+            )
+            evidence_counter += 1
+            existing_cve.add(cve_id)
+
+        return cve_findings, evidence_counter
+
+    def _retrieve_online_findings_via_langchain(
+        self,
+        incident: Incident,
+        current_rule_hits: int,
+        force_online: bool = False,
+    ) -> List[Dict[str, Any]]:
+        if not self.model_config.enable_online_rag and not force_online:
             return []
-        if current_rule_hits >= max(0, int(self.model_config.online_rag_min_rule_hits)):
+        if not force_online and current_rule_hits >= max(0, int(self.model_config.online_rag_min_rule_hits)):
             return []
-        if not self.web_search_client.enabled():
+        if not self.web_search_client.enabled(force=force_online):
             return []
 
         query_terms = self._build_query_terms(incident)
@@ -556,7 +653,7 @@ class ThreatIntelligenceRetrieval:
         findings: List[Dict[str, Any]] = []
         seen_urls = set()
         for query in search_queries:
-            search_rows = self.web_search_client.search(query=query, top_k=2)
+            search_rows = self.web_search_client.search(query=query, top_k=2, force=force_online)
             for row in search_rows:
                 url = str(row.get("url", "")).strip()
                 if not url or url in seen_urls:
@@ -579,8 +676,8 @@ class ThreatIntelligenceRetrieval:
                 break
         return findings[:4]
 
-    def _retrieve_online_findings_via_llm(self, incident: Incident) -> List[Dict[str, Any]]:
-        if not self.model_config.enable_online_rag:
+    def _retrieve_online_findings_via_llm(self, incident: Incident, force_online: bool = False) -> List[Dict[str, Any]]:
+        if not self.model_config.enable_online_rag and not force_online:
             return []
         payload = {
             "incident_summary": incident.event_summary,
@@ -620,6 +717,170 @@ class ThreatIntelligenceRetrieval:
                 }
             )
         return output
+
+    def _enrich_cves_from_online(
+        self,
+        incident: Incident,
+        online_findings: List[Dict[str, Any]],
+        existing_cves: set[str],
+        start_counter: int,
+        force_online: bool = False,
+    ) -> List[Dict[str, Any]]:
+        if not online_findings:
+            return []
+        cve_ids: List[str] = []
+        for row in online_findings:
+            text = " ".join(
+                [
+                    str(row.get("ioc", "")),
+                    str(row.get("threat", "")),
+                    str(row.get("snippet", "")),
+                    str(row.get("source_url", "")),
+                ]
+            )
+            for cve in re.findall(r"\bCVE-\d{4}-\d{4,7}\b", text, flags=re.IGNORECASE):
+                cve_ids.append(cve.upper())
+
+        # 从规则ID中补抓 CVE，例如 RULE-CVE-CVE_2021_22941
+        for row in (incident.raw_logs or [])[:20]:
+            for m in re.findall(r"RULE-CVE-(CVE_\d{4}_\d{4,7})", str(row), flags=re.IGNORECASE):
+                cve_ids.append(m.replace("_", "-").upper())
+
+        cve_ids = list(dict.fromkeys([x for x in cve_ids if x and x not in existing_cves]))[:5]
+        if not cve_ids:
+            return []
+
+        out: List[Dict[str, Any]] = []
+        counter = start_counter
+        for cve_id in cve_ids:
+            detail = self._fetch_cve_detail_via_llm_search(cve_id, force_online=force_online)
+            if not detail:
+                continue
+            out.append(
+                {
+                    "cve": cve_id,
+                    "severity": float(detail.get("severity", 0.0)),
+                    "description": str(detail.get("description", "")),
+                    "ttp": str(detail.get("ttp", "Unknown")),
+                    "cwe": list(detail.get("cwe", []) or []),
+                    "vuln_alias": str(detail.get("vuln_alias", cve_id)),
+                    "software_versions": list(detail.get("software_versions", []) or []),
+                    "fixed_versions": list(detail.get("fixed_versions", []) or []),
+                    "evidence_id": f"EVID-{counter:04d}",
+                    "source_url": str(detail.get("source_url", f"https://nvd.nist.gov/vuln/detail/{cve_id}")),
+                    "source_type": "online_cve_enriched",
+                }
+            )
+            counter += 1
+        return out
+
+    def _fetch_cve_detail_via_llm_search(self, cve_id: str, force_online: bool = False) -> Dict[str, Any] | None:
+        if not self.model_config.enable_online_rag and not force_online:
+            return None
+        payload = {
+            "cve_id": cve_id,
+            "request": (
+                "联网检索并返回该CVE结构化信息。"
+                "只返回JSON字段: severity, description, ttp, cwe, vuln_alias, software_versions, fixed_versions, source_url。"
+                "ttp优先返回ATT&CK技术ID格式，如 T1190 或 T1059.001。"
+            ),
+        }
+        response = self.llm_client.generate_json(
+            system_prompt="你是漏洞情报助手。仅返回JSON，不输出解释。",
+            user_prompt=json.dumps(payload, ensure_ascii=False),
+            use_online_search=True,
+        )
+        if not isinstance(response, dict):
+            return None
+        severity = response.get("severity", 0.0)
+        try:
+            severity = float(severity)
+        except Exception:
+            severity = 0.0
+        cwe = response.get("cwe", [])
+        if isinstance(cwe, str):
+            cwe = [x.strip() for x in cwe.split(",") if x.strip()]
+        if not isinstance(cwe, list):
+            cwe = []
+        software_versions = response.get("software_versions", [])
+        if isinstance(software_versions, str):
+            software_versions = [x.strip() for x in software_versions.split(",") if x.strip()]
+        if not isinstance(software_versions, list):
+            software_versions = []
+        fixed_versions = response.get("fixed_versions", [])
+        if isinstance(fixed_versions, str):
+            fixed_versions = [x.strip() for x in fixed_versions.split(",") if x.strip()]
+        if not isinstance(fixed_versions, list):
+            fixed_versions = []
+        return {
+            "severity": severity,
+            "description": str(response.get("description", "")),
+            "ttp": str(response.get("ttp", "Unknown")),
+            "cwe": [str(x).upper() for x in cwe if str(x).strip()],
+            "vuln_alias": str(response.get("vuln_alias", cve_id)),
+            "software_versions": [str(x) for x in software_versions if str(x).strip()],
+            "fixed_versions": [str(x) for x in fixed_versions if str(x).strip()],
+            "source_url": str(response.get("source_url", f"https://nvd.nist.gov/vuln/detail/{cve_id}")),
+        }
+
+    def _persist_online_findings_to_db(self, online_findings: List[Dict[str, Any]], cve_findings: List[Dict[str, Any]]) -> Dict[str, Any]:
+        if not self.rag_store:
+            return {"upserted": 0}
+        docs: List[RAGDocument] = []
+
+        for row in online_findings:
+            text_key_raw = str(row.get("ioc", "")).strip() or str(row.get("source_url", "")).strip()
+            if not text_key_raw:
+                continue
+            text_key = re.sub(r"\s+", "_", text_key_raw.lower())[:240]
+            docs.append(
+                RAGDocument(
+                    doc_type="ioc",
+                    text_key=text_key,
+                    title=str(row.get("threat", "Online Intel")).strip()[:120],
+                    content=str(row.get("snippet", ""))[:1000],
+                    metadata={
+                        "threat": str(row.get("threat", "")),
+                        "confidence": float(row.get("confidence", 0.6)),
+                        "source_url": str(row.get("source_url", "")),
+                        "source_type": "online_fused",
+                        "all_source_urls": list(row.get("all_source_urls", []) or []),
+                    },
+                    score_hint=float(row.get("confidence", 0.6)),
+                )
+            )
+
+        for row in cve_findings:
+            cve_id = str(row.get("cve", "")).upper().strip()
+            if not cve_id:
+                continue
+            docs.append(
+                RAGDocument(
+                    doc_type="cve",
+                    text_key=cve_id,
+                    title=f"CVE {cve_id}",
+                    content=(
+                        f"CVE={cve_id} severity={row.get('severity', 0)} "
+                        f"description={row.get('description', '')} ttp={row.get('ttp', 'Unknown')}"
+                    ),
+                    metadata={
+                        "severity": float(row.get("severity", 0.0)),
+                        "description": str(row.get("description", "")),
+                        "ttp": str(row.get("ttp", "Unknown")),
+                        "cwe": list(row.get("cwe", []) or []),
+                        "vuln_alias": str(row.get("vuln_alias", cve_id)),
+                        "software_versions": list(row.get("software_versions", []) or []),
+                        "fixed_versions": list(row.get("fixed_versions", []) or []),
+                        "source_url": str(row.get("source_url", f"https://nvd.nist.gov/vuln/detail/{cve_id}")),
+                        "source_type": "online_cve_enriched",
+                    },
+                    score_hint=max(0.0, min(1.0, float(row.get("severity", 0.0)) / 10.0)),
+                )
+            )
+
+        if not docs:
+            return {"upserted": 0}
+        return self.rag_store.upsert_documents(docs)
 
     def _deduplicate_and_fuse(self, findings: List[Dict[str, Any]], start_counter: int) -> List[Dict[str, Any]]:
         """
@@ -1011,12 +1272,53 @@ def _parse_single_cve_json(payload: Dict[str, Any]) -> Dict[str, Any] | None:
             source_url = url
             break
 
+    cwe_values: List[str] = []
+    for ptype in cna.get("problemTypes", []) or []:
+        for desc in ptype.get("descriptions", []) or []:
+            cwe_id = str(desc.get("cweId", "")).strip().upper()
+            if cwe_id.startswith("CWE-"):
+                cwe_values.append(cwe_id)
+            text = str(desc.get("description", ""))
+            for m in re.findall(r"\bCWE-\d+\b", text, flags=re.IGNORECASE):
+                cwe_values.append(m.upper())
+    cwe_values = list(dict.fromkeys([x for x in cwe_values if x]))
+
+    software_versions: List[str] = []
+    fixed_versions: List[str] = []
+    for aff in cna.get("affected", []) or []:
+        product = str(aff.get("product", "")).strip()
+        vendor = str(aff.get("vendor", "")).strip()
+        product_prefix = " / ".join([x for x in [vendor, product] if x])
+        for ver in aff.get("versions", []) or []:
+            version = str(ver.get("version", "")).strip()
+            less_than = str(ver.get("lessThan", "")).strip()
+            less_equal = str(ver.get("lessThanOrEqual", "")).strip()
+            status = str(ver.get("status", "")).strip().lower()
+            value = version or less_than or less_equal
+            if not value:
+                continue
+            if product_prefix:
+                value = f"{product_prefix}:{value}"
+            if status in {"affected", "unknown"}:
+                software_versions.append(value)
+            if status in {"fixed", "unaffected"}:
+                fixed_versions.append(value)
+
+    software_versions = list(dict.fromkeys([x for x in software_versions if x]))[:10]
+    fixed_versions = list(dict.fromkeys([x for x in fixed_versions if x]))[:10]
+
+    vuln_alias = str(cna.get("title", "")).strip() or cve_id
+
     return {
         "cve": cve_id,
         "severity": severity,
         "description": description,
         "ttp": ttp,
         "source_url": source_url,
+        "cwe": cwe_values,
+        "vuln_alias": vuln_alias,
+        "software_versions": software_versions,
+        "fixed_versions": fixed_versions,
     }
 
 
