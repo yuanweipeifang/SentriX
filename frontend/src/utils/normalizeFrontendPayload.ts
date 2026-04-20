@@ -215,8 +215,61 @@ export function normalizeFrontendPayload(rawInput: unknown): UiShellData {
     },
     observability: {
       cache_hit: asRecord(asRecord(source.observability).cache_hit) as Record<string, boolean>,
-      planner: asRecord(asRecord(source.observability).planner),
+      planner: {
+        early_stop_count: asNumber(
+          asRecord(asRecord(source.observability).planner).early_stop_count,
+          defaultPayload.observability.planner.early_stop_count,
+        ),
+        ranked_action_count: asNumber(
+          asRecord(asRecord(source.observability).planner).ranked_action_count,
+          defaultPayload.observability.planner.ranked_action_count,
+        ),
+      },
       stage_elapsed_ms: asRecord(asRecord(source.observability).stage_elapsed_ms) as Record<string, number>,
+      rag_enrichment: {
+        online_findings_count: asNumber(
+          asRecord(asRecord(source.observability).rag_enrichment).online_findings_count,
+          defaultPayload.observability.rag_enrichment.online_findings_count,
+        ),
+        online_cve_enriched_count: asNumber(
+          asRecord(asRecord(source.observability).rag_enrichment).online_cve_enriched_count,
+          defaultPayload.observability.rag_enrichment.online_cve_enriched_count,
+        ),
+        online_cve_field_enriched_count: asNumber(
+          asRecord(asRecord(source.observability).rag_enrichment).online_cve_field_enriched_count,
+          defaultPayload.observability.rag_enrichment.online_cve_field_enriched_count,
+        ),
+        online_db_upserted: asNumber(
+          asRecord(asRecord(source.observability).rag_enrichment).online_db_upserted,
+          defaultPayload.observability.rag_enrichment.online_db_upserted,
+        ),
+      },
+      async_cross_validate: {
+        enabled: asBoolean(
+          asRecord(asRecord(source.observability).async_cross_validate).enabled,
+          defaultPayload.observability.async_cross_validate.enabled,
+        ),
+        scheduled: asNumber(
+          asRecord(asRecord(source.observability).async_cross_validate).scheduled,
+          defaultPayload.observability.async_cross_validate.scheduled,
+        ),
+        queued: asNumber(
+          asRecord(asRecord(source.observability).async_cross_validate).queued,
+          defaultPayload.observability.async_cross_validate.queued,
+        ),
+        running: asNumber(
+          asRecord(asRecord(source.observability).async_cross_validate).running,
+          defaultPayload.observability.async_cross_validate.running,
+        ),
+        done: asNumber(
+          asRecord(asRecord(source.observability).async_cross_validate).done,
+          defaultPayload.observability.async_cross_validate.done,
+        ),
+        failed: asNumber(
+          asRecord(asRecord(source.observability).async_cross_validate).failed,
+          defaultPayload.observability.async_cross_validate.failed,
+        ),
+      },
     },
   }
 

@@ -14,6 +14,7 @@ from .engine.workflow import run_pipeline, run_pipeline_csv_dataset, run_pipelin
 from .services.countermeasure_service import CountermeasureService
 from .services.countermeasure_state_store import CountermeasureStateStore
 from .services.llm_client import LLMClient
+from .services.rag import ThreatIntelligenceRetrieval
 from .services.rag_store import SQLiteRAGStore
 
 
@@ -260,6 +261,24 @@ def _sync_countermeasure_runtime(result: dict[str, Any]) -> dict[str, Any]:
         executable["summary"] = summary
         response["executable"] = executable
         result["response"] = response
+    return result
+
+
+def _sync_runtime_observability(result: dict[str, Any]) -> dict[str, Any]:
+    frontend_payload = result.get("frontend_payload", {}) or {}
+    observability = frontend_payload.get("observability", {}) or {}
+
+    async_status = ThreatIntelligenceRetrieval.get_async_cross_validate_runtime_status()
+    observability["async_cross_validate"] = {
+        "enabled": bool(async_status.get("enabled", False)),
+        "scheduled": int(async_status.get("scheduled", 0) or 0),
+        "queued": int(async_status.get("queued", 0) or 0),
+        "running": int(async_status.get("running", 0) or 0),
+        "done": int(async_status.get("done", 0) or 0),
+        "failed": int(async_status.get("failed", 0) or 0),
+    }
+    frontend_payload["observability"] = observability
+    result["frontend_payload"] = frontend_payload
     return result
 
 
@@ -514,6 +533,7 @@ def create_frontend_api_app() -> Flask:
             else:
                 result = run_pipeline_dataset(dataset_file=dataset_file, sample_index=dataset_index)
             result = _sync_countermeasure_runtime(result)
+            result = _sync_runtime_observability(result)
             frontend_payload = result.get("frontend_payload", {}) or {}
             frontend_payload["rules"] = _list_attack_rules(limit=120)
             result["frontend_payload"] = frontend_payload
@@ -529,6 +549,23 @@ def create_frontend_api_app() -> Flask:
                 ),
                 500,
             )
+
+    @app.route("/api/runtime/async-cross-validate", methods=["GET"])
+    def runtime_async_cross_validate():
+        status = ThreatIntelligenceRetrieval.get_async_cross_validate_runtime_status()
+        return jsonify(
+            {
+                "ok": True,
+                "async_cross_validate": {
+                    "enabled": bool(status.get("enabled", False)),
+                    "scheduled": int(status.get("scheduled", 0) or 0),
+                    "queued": int(status.get("queued", 0) or 0),
+                    "running": int(status.get("running", 0) or 0),
+                    "done": int(status.get("done", 0) or 0),
+                    "failed": int(status.get("failed", 0) or 0),
+                },
+            }
+        )
 
     @app.route("/api/copilot/chat", methods=["POST"])
     def copilot_chat():

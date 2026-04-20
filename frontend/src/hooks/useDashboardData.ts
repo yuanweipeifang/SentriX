@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createEmptyUiShellData } from '../constants/defaultUi'
 import {
   DEFAULT_FRONTEND_PAYLOAD_QUERY,
+  fetchAsyncCrossValidateRuntimeStatus,
   fetchFrontendPayload,
 } from '../services/frontendPayloadApi'
 import type { UiShellData } from '../types/frontendPayload'
@@ -54,6 +55,50 @@ export function useDashboardData() {
       active = false
     }
   }, [emptyUi])
+
+  useEffect(() => {
+    let active = true
+    let timer: ReturnType<typeof setInterval> | null = null
+
+    async function refreshRuntimeStatus() {
+      try {
+        const stats = await fetchAsyncCrossValidateRuntimeStatus()
+        if (!active) return
+        setUi((prev) => ({
+          ...prev,
+          frontendPayload: {
+            ...prev.frontendPayload,
+            observability: {
+              ...prev.frontendPayload.observability,
+              async_cross_validate: {
+                ...prev.frontendPayload.observability.async_cross_validate,
+                enabled: stats.enabled,
+                scheduled: stats.scheduled,
+                queued: stats.queued,
+                running: stats.running,
+                done: stats.done,
+                failed: stats.failed,
+              },
+            },
+          },
+        }))
+      } catch (_error) {
+        // ignore transient runtime status errors to avoid interrupting main payload rendering
+      }
+    }
+
+    void refreshRuntimeStatus()
+    timer = setInterval(() => {
+      void refreshRuntimeStatus()
+    }, 2500)
+
+    return () => {
+      active = false
+      if (timer) {
+        clearInterval(timer)
+      }
+    }
+  }, [])
 
   return { ui, loadState, errorMessage, refreshUi }
 }

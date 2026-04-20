@@ -97,8 +97,25 @@ export function createEmptyFrontendPayload(): FrontendPayload {
     },
     observability: {
       cache_hit: {},
-      planner: {},
+      planner: {
+        early_stop_count: 0,
+        ranked_action_count: 0,
+      },
       stage_elapsed_ms: {},
+      rag_enrichment: {
+        online_findings_count: 0,
+        online_cve_enriched_count: 0,
+        online_cve_field_enriched_count: 0,
+        online_db_upserted: 0,
+      },
+      async_cross_validate: {
+        enabled: false,
+        scheduled: 0,
+        queued: 0,
+        running: 0,
+        done: 0,
+        failed: 0,
+      },
     },
   }
 }

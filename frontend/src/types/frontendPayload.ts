@@ -202,8 +202,25 @@ export interface CaseMemoryPanel {
 
 export interface ObservabilityPanel {
   cache_hit: Record<string, boolean>
-  planner: Record<string, unknown>
+  planner: {
+    early_stop_count: number
+    ranked_action_count: number
+  }
   stage_elapsed_ms: Record<string, number>
+  rag_enrichment: {
+    online_findings_count: number
+    online_cve_enriched_count: number
+    online_cve_field_enriched_count: number
+    online_db_upserted: number
+  }
+  async_cross_validate: {
+    enabled: boolean
+    scheduled: number
+    queued: number
+    running: number
+    done: number
+    failed: number
+  }
 }
 
 export interface IncidentOverview {

@@ -13,6 +13,23 @@ type RuntimeLine = {
 }
 
 function buildRuntimeLines(payload: FrontendPayload, aiMessages: AiPanelMessage[]): RuntimeLine[] {
+  const asyncCv = payload.observability.async_cross_validate
+  const enrich = payload.observability.rag_enrichment
+  const asyncLines: RuntimeLine[] = [
+    {
+      id: 'async-xv',
+      level: asyncCv.failed > 0 ? 'warn' : asyncCv.running > 0 || asyncCv.queued > 0 ? 'info' : 'ok',
+      prefix: '[ASYNC-XV]',
+      text: `enabled=${asyncCv.enabled}; q=${asyncCv.queued}; r=${asyncCv.running}; done=${asyncCv.done}; fail=${asyncCv.failed}; scheduled=${asyncCv.scheduled}`,
+    },
+    {
+      id: 'rag-enrich',
+      level: enrich.online_cve_field_enriched_count > 0 ? 'ok' : 'info',
+      prefix: '[RAG-ENRICH]',
+      text: `online=${enrich.online_findings_count}; cve=${enrich.online_cve_enriched_count}; cve_fields=${enrich.online_cve_field_enriched_count}; db_upserted=${enrich.online_db_upserted}`,
+    },
+  ]
+
   const timelineLines =
     payload.timeline.length > 0
       ? payload.timeline.slice(0, 6).map((item, index) => ({
@@ -48,7 +65,7 @@ function buildRuntimeLines(payload: FrontendPayload, aiMessages: AiPanelMessage[
     },
   ]
 
-  return [...timelineLines, ...stageLines, ...aiLines].slice(0, 10).concat(
+  return [...asyncLines, ...timelineLines, ...stageLines, ...aiLines].slice(0, 10).concat(
     timelineLines.length === 0 && stageLines.length === 0 && aiLines.length === 0 ? fallback : [],
   )
 }

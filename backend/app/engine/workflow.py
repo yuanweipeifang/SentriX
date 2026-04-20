@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 import re
 from dataclasses import dataclass
@@ -261,7 +262,6 @@ def _build_ioc_indicator_analysis(result: Dict) -> List[Dict]:
                 "指标": [
                     {"名称": "CVE", "值": cve or "Unknown"},
                     {"名称": "CWE", "值": cwe_text or "Unknown"},
-                    {"名称": "漏洞代号", "值": cve or "Unknown"},
                     {"名称": "漏洞代号", "值": vuln_alias or "Unknown"},
                     {"名称": "软件版本", "值": ", ".join([str(x) for x in software_versions]) or "Unknown"},
                     {"名称": "修复版本", "值": ", ".join([str(x) for x in fixed_versions]) or "Unknown"},
@@ -277,7 +277,6 @@ def _build_ioc_indicator_analysis(result: Dict) -> List[Dict]:
                     {"名称": "CVE", "值": "Unknown"},
                     {"名称": "CWE", "值": "Unknown"},
                     {"名称": "漏洞代号", "值": "Unknown"},
-                    {"名称": "漏洞代号", "值": "Unknown"},
                     {"名称": "软件版本", "值": "Unknown"},
                     {"名称": "修复版本", "值": "Unknown"},
                 ],
@@ -292,6 +291,89 @@ def _build_deep_analysis(result: Dict) -> Dict:
         "暴露面分析": _build_exposure_surface_analysis(result),
         "IOC指标": _build_ioc_indicator_analysis(result),
     }
+
+
+def _has_unknown_deep_analysis(deep_analysis: Dict[str, Any]) -> bool:
+    attack_rows = deep_analysis.get("攻击链ATT&CK映射", []) or []
+    for row in attack_rows:
+        if str(row.get("技术ID", "")).strip().lower() in {"", "unknown"}:
+            return True
+
+    exposure = deep_analysis.get("暴露面分析", {}) or {}
+    if str(exposure.get("场景风险等级说明", "")).strip().lower() in {"", "unknown"}:
+        return True
+
+    ioc_rows = deep_analysis.get("IOC指标", []) or []
+    for item in ioc_rows:
+        for metric in item.get("指标", []) or []:
+            if str(metric.get("值", "")).strip().lower() in {"", "unknown"}:
+                return True
+    return False
+
+
+def _merge_deep_analysis(base: Dict[str, Any], patch: Dict[str, Any]) -> Dict[str, Any]:
+    merged = {
+        "攻击链ATT&CK映射": list(base.get("攻击链ATT&CK映射", []) or []),
+        "暴露面分析": dict(base.get("暴露面分析", {}) or {}),
+        "IOC指标": list(base.get("IOC指标", []) or []),
+    }
+
+    patched_attack = patch.get("攻击链ATT&CK映射", []) or []
+    if patched_attack:
+        merged["攻击链ATT&CK映射"] = patched_attack
+
+    patched_exposure = patch.get("暴露面分析", {}) or {}
+    if patched_exposure:
+        merged["暴露面分析"].update(patched_exposure)
+
+    patched_ioc = patch.get("IOC指标", []) or []
+    if patched_ioc:
+        merged["IOC指标"] = patched_ioc
+
+    return merged
+
+
+def _llm_fill_unknown_deep_analysis(result: Dict, deep_analysis: Dict[str, Any], llm_client: LLMClient) -> Dict[str, Any]:
+    if not _has_unknown_deep_analysis(deep_analysis):
+        return deep_analysis
+
+    payload = {
+        "incident": {
+            "event_summary": (result.get("incident", {}) or {}).get("event_summary", ""),
+            "affected_assets": (result.get("incident", {}) or {}).get("affected_assets", []),
+            "ioc": (result.get("incident", {}) or {}).get("ioc", {}),
+        },
+        "rag": {
+            "rule_findings": (result.get("rag", {}) or {}).get("rule_findings", [])[:10],
+            "cve_findings": (result.get("rag", {}) or {}).get("cve_findings", [])[:10],
+            "ioc_findings": (result.get("rag", {}) or {}).get("ioc_findings", [])[:10],
+            "asset_findings": (result.get("rag", {}) or {}).get("asset_findings", [])[:10],
+        },
+        "current_deep_analysis": deep_analysis,
+        "instruction": (
+            "仅补全 current_deep_analysis 中值为 Unknown 的字段。"
+            "不要删除已有非Unknown值。"
+            "返回 JSON 字段: 攻击链ATT&CK映射, 暴露面分析, IOC指标。"
+            "攻击链ATT&CK映射 的字段必须是 攻击阶段, ATT&CK战术, 技术ID, 技术描述。"
+            "IOC指标 每条记录需包含指标名称: CVE, CWE, 漏洞代号, 软件版本, 修复版本。"
+            "优先使用联网检索结果补全；只有在确实缺失公开信息时才保留 Unknown。"
+        ),
+    }
+
+    patched = llm_client.generate_json(
+        system_prompt=(
+            "你是SOC研判补全助手。"
+            "当检索信息不足时，基于上下文做最合理补全；"
+            "输出必须是JSON对象，且仅包含要求字段。"
+        ),
+        user_prompt=json.dumps(payload, ensure_ascii=False),
+        use_online_search=True,
+    )
+
+    if not isinstance(patched, dict):
+        return deep_analysis
+
+    return _merge_deep_analysis(deep_analysis, patched)
 
 
 def _build_confidence_model(result: Dict) -> Dict:
@@ -385,6 +467,7 @@ def _build_evidence_trace_tree(result: Dict) -> Dict:
 def _build_observability_snapshot(result: Dict) -> Dict:
     trace = (result.get("skill_runtime", {}) or {}).get("execution_trace", []) or []
     response = result.get("response", {}) or {}
+    rag_ctx = ((result.get("rag", {}) or {}).get("rag_context", {}) or {})
     ranked = response.get("ranked_actions", []) or []
     early_stop_count = sum(
         1 for item in ranked if ((item.get("execution_meta", {}) or {}).get("early_stopped", False))
@@ -398,6 +481,20 @@ def _build_observability_snapshot(result: Dict) -> Dict:
         "planner": {
             "early_stop_count": early_stop_count,
             "ranked_action_count": len(ranked),
+        },
+        "rag_enrichment": {
+            "online_findings_count": int(rag_ctx.get("online_findings_count", 0) or 0),
+            "online_cve_enriched_count": int(rag_ctx.get("online_cve_enriched_count", 0) or 0),
+            "online_cve_field_enriched_count": int(rag_ctx.get("online_cve_field_enriched_count", 0) or 0),
+            "online_db_upserted": int(rag_ctx.get("online_db_upserted", 0) or 0),
+        },
+        "async_cross_validate": {
+            "enabled": bool(rag_ctx.get("online_async_cross_validate_enabled", False)),
+            "scheduled": int(rag_ctx.get("online_async_cross_validate_scheduled", 0) or 0),
+            "queued": int(rag_ctx.get("online_async_cross_validate_queued", 0) or 0),
+            "running": int(rag_ctx.get("online_async_cross_validate_running", 0) or 0),
+            "done": int(rag_ctx.get("online_async_cross_validate_done", 0) or 0),
+            "failed": int(rag_ctx.get("online_async_cross_validate_failed", 0) or 0),
         },
     }
 
@@ -1028,6 +1125,11 @@ class BackendWorkflow:
         }
         result["incident_decision"] = _infer_incident_decision(result)
         result["deep_analysis"] = _build_deep_analysis(result)
+        result["deep_analysis"] = _llm_fill_unknown_deep_analysis(
+            result=result,
+            deep_analysis=result["deep_analysis"],
+            llm_client=llm_client,
+        )
         result["evidence_trace_tree"] = _build_evidence_trace_tree(result)
         result["observability"] = _build_observability_snapshot(result)
         result["frontend_explainability"] = _build_frontend_explainability(result)

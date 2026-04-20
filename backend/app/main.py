@@ -17,6 +17,7 @@ from .engine.workflow import (
     run_stress_test,
 )
 from .services.rag import (
+    ThreatIntelligenceRetrieval,
     evaluate_csv_with_rules_and_evidence,
     generate_rules_from_cve_to_rag,
     import_cve_json_to_rag,
@@ -109,6 +110,7 @@ def _print_processing_logs(result: Dict[str, Any]) -> None:
         )
 
     rag_ctx = rag.get("rag_context", {}) or {}
+    async_stats = ThreatIntelligenceRetrieval.get_async_cross_validate_stats()
     print(f"{Fore.CYAN}[PROCESS]{Style.RESET_ALL} 情报检索诊断")
     print(
         f"  cache_hit={bool(rag_ctx.get('cache_hit', False))}; "
@@ -117,6 +119,12 @@ def _print_processing_logs(result: Dict[str, Any]) -> None:
         f"trigger={str(rag_ctx.get('online_trigger_reason', 'not_forced'))}; "
         f"online_findings={int(rag_ctx.get('online_findings_count', 0) or 0)}; "
         f"online_cve_enriched={int(rag_ctx.get('online_cve_enriched_count', 0) or 0)}; "
+        f"online_cve_field_enriched={int(rag_ctx.get('online_cve_field_enriched_count', 0) or 0)}; "
+        f"async_xv_scheduled={int(rag_ctx.get('online_async_cross_validate_scheduled', 0) or 0)}; "
+        f"async_xv_q={int(async_stats.get('queued', 0) or 0)}; "
+        f"async_xv_r={int(async_stats.get('running', 0) or 0)}; "
+        f"async_xv_done={int(async_stats.get('done', 0) or 0)}; "
+        f"async_xv_fail={int(async_stats.get('failed', 0) or 0)}; "
         f"db_upserted={int(rag_ctx.get('online_db_upserted', 0) or 0)}"
     )
 
@@ -133,9 +141,14 @@ def _run_with_heartbeat(task_name: str, interval_seconds: int, fn, *args, **kwar
         while not stop_event.wait(interval_seconds):
             pulse += 1
             elapsed = int(time.perf_counter() - started_at)
+            async_stats = ThreatIntelligenceRetrieval.get_async_cross_validate_stats()
             print(
                 f"{Fore.YELLOW}[HEARTBEAT]{Style.RESET_ALL} task={task_name}; "
                 f"pulse={pulse}; elapsed={elapsed}s; status=running"
+                f"; async_xv=q:{int(async_stats.get('queued', 0) or 0)}"
+                f"/r:{int(async_stats.get('running', 0) or 0)}"
+                f"/d:{int(async_stats.get('done', 0) or 0)}"
+                f"/f:{int(async_stats.get('failed', 0) or 0)}"
                 , flush=True
             )
 
@@ -160,6 +173,62 @@ def _run_with_heartbeat(task_name: str, interval_seconds: int, fn, *args, **kwar
 
 def _progress_printer(message: str) -> None:
     print(message, flush=True)
+
+
+def _print_eval_matrix_summary(concise: Dict[str, Any]) -> None:
+    metrics = concise.get("metrics", {}) or {}
+    effects = concise.get("technical_effects", {}) or {}
+    mapping = concise.get("mapping_diagnostics", {}) or {}
+    reports = concise.get("report_files", {}) or {}
+
+    print(f"{Fore.GREEN}[EVAL-MATRIX]{Style.RESET_ALL} Summary", flush=True)
+    print("| Dataset | Samples | IncidentAcc | MITRE_F1 | Hallucination |", flush=True)
+    print("|---|---:|---:|---:|---:|", flush=True)
+    print(
+        "| {ds} | {n} | {acc} | {f1} | {hall} |".format(
+            ds=concise.get("dataset_file", ""),
+            n=concise.get("processed_samples", 0),
+            acc=metrics.get("incident_yes_no_accuracy", 0.0),
+            f1=metrics.get("mitre_match_f1", 0.0),
+            hall=metrics.get("hallucination_rate", 0.0),
+        ),
+        flush=True,
+    )
+
+    print("| Cache(RAG) | Cache(Layered) | EarlyStop | AvgRuleHits | AuditFailRate |", flush=True)
+    print("|---:|---:|---:|---:|---:|", flush=True)
+    cache = effects.get("cache_hit_rate", {}) or {}
+    print(
+        "| {rag} | {la} | {es} | {rh} | {af} |".format(
+            rag=cache.get("rag", 0.0),
+            la=cache.get("layered_agents", 0.0),
+            es=effects.get("planner_early_stop_rate", 0.0),
+            rh=effects.get("avg_rule_hit_count", 0.0),
+            af=effects.get("audit_fail_rate", 0.0),
+        ),
+        flush=True,
+    )
+
+    print("| MismatchCount | MismatchRate | Reasons |", flush=True)
+    print("|---:|---:|---|", flush=True)
+    print(
+        "| {mc} | {mr} | {rs} |".format(
+            mc=mapping.get("incident_mismatch_count", 0),
+            mr=mapping.get("incident_mismatch_rate", 0.0),
+            rs=mapping.get("reason_stats", {}),
+        ),
+        flush=True,
+    )
+
+    print("| JSON Report | Markdown Report |", flush=True)
+    print("|---|---|", flush=True)
+    print(
+        "| {j} | {m} |".format(
+            j=reports.get("json", ""),
+            m=reports.get("markdown", ""),
+        ),
+        flush=True,
+    )
 
 
 def main() -> None:
@@ -358,6 +427,11 @@ def main() -> None:
         type=int,
         default=0,
         help="Start index for --eval-harness.",
+    )
+    parser.add_argument(
+        "--compact-json",
+        action="store_true",
+        help="Print one-line compact JSON after matrix summary (avoids pretty-print line breaks).",
     )
     parser.add_argument(
         "--api-host",
@@ -561,7 +635,8 @@ def main() -> None:
             f"md={concise['report_files'].get('markdown', '')}",
             flush=True,
         )
-        print(json.dumps(concise, ensure_ascii=False, indent=2))
+        if args.compact_json:
+            print(json.dumps(concise, ensure_ascii=False, separators=(",", ":")))
         return
 
     if args.stress_test:

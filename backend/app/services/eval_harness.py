@@ -137,6 +137,7 @@ def run_eval_harness(
             risk_score=pred["risk_score"],
             tokens=pred["total_tokens"],
         )
+        _print_eval_analysis_matrix(idx=idx, result=result)
 
     processed = len(sample_rows)
     incident_accuracy = _safe_div(incident_correct, incident_eval_count)
@@ -297,6 +298,80 @@ def _print_eval_sample_line(
         f"audit={audit_result} | risk={risk_score} | match={match}",
         flush=True,
     )
+
+
+def _print_eval_analysis_matrix(idx: int, result: Dict[str, Any]) -> None:
+    deep = result.get("deep_analysis", {}) or {}
+    attack_rows = deep.get("攻击链ATT&CK映射", []) or []
+    exposure = deep.get("暴露面分析", {}) or {}
+    ioc_rows = deep.get("IOC指标", []) or []
+
+    print(f"{Fore.MAGENTA}[EVAL-MATRIX]{Style.RESET_ALL} sample=#{idx:02d}", flush=True)
+
+    # 1) 攻击链 ATT&CK 映射矩阵
+    print("  [1] 攻击链ATT&CK映射", flush=True)
+    print("  | 攻击阶段 | ATT&CK战术 | 技术ID | 技术描述 |", flush=True)
+    print("  |---|---|---|---|", flush=True)
+    if attack_rows:
+        for row in attack_rows:
+            print(
+                "  | {stage} | {tactic} | {tid} | {desc} |".format(
+                    stage=str(row.get("攻击阶段", "Unknown")),
+                    tactic=str(row.get("ATT&CK战术", "Unknown")),
+                    tid=str(row.get("技术ID", "Unknown")),
+                    desc=str(row.get("技术描述", "Unknown"))[:140],
+                ),
+                flush=True,
+            )
+    else:
+        print("  | Unknown | Unknown | Unknown | Unknown |", flush=True)
+
+    # 2) 暴露面分析矩阵
+    print("  [2] 暴露面分析", flush=True)
+    print("  | 场景风险等级说明 |", flush=True)
+    print("  |---|", flush=True)
+    print(
+        "  | {desc} |".format(
+            desc=str(exposure.get("场景风险等级说明", "Unknown")),
+        ),
+        flush=True,
+    )
+
+    # 3) IOC 指标矩阵
+    print("  [3] IOC指标", flush=True)
+    print("  | CVE | CWE | 漏洞代号 | 软件版本 | 修复版本 |", flush=True)
+    print("  |---|---|---|---|---|", flush=True)
+    if ioc_rows:
+        for item in ioc_rows:
+            metric_map = _metric_row_to_map(item)
+            print(
+                "  | {cve} | {cwe} | {alias} | {sv} | {fv} |".format(
+                    cve=metric_map.get("CVE", "Unknown"),
+                    cwe=metric_map.get("CWE", "Unknown"),
+                    alias=metric_map.get("漏洞代号", "Unknown"),
+                    sv=metric_map.get("软件版本", "Unknown"),
+                    fv=metric_map.get("修复版本", "Unknown"),
+                ),
+                flush=True,
+            )
+    else:
+        print("  | Unknown | Unknown | Unknown | Unknown | Unknown |", flush=True)
+
+
+def _metric_row_to_map(item: Dict[str, Any]) -> Dict[str, str]:
+    out: Dict[str, str] = {}
+    for metric in item.get("指标", []) or []:
+        name = str(metric.get("名称", "")).strip()
+        value = str(metric.get("值", "")).strip() or "Unknown"
+        if not name:
+            continue
+        # 若同名字段重复，保留首个非Unknown值，避免覆盖成Unknown。
+        if name not in out:
+            out[name] = value
+            continue
+        if out[name] == "Unknown" and value != "Unknown":
+            out[name] = value
+    return out
 
 
 def _build_mapping_diagnostics(sample_rows: List[Dict[str, Any]]) -> Dict[str, Any]:

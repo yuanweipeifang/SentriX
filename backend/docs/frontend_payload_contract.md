@@ -43,9 +43,8 @@
 
 用途：页面顶部事件摘要区域。
 
-字段：
-
-- `event_summary: string`
+- `rag_enrichment: { online_findings_count: number, online_cve_enriched_count: number, online_cve_field_enriched_count: number, online_db_upserted: number }`
+- `async_cross_validate: { enabled: boolean, scheduled: number, queued: number, running: number, done: number, failed: number }`
 - `affected_assets: string[]`
 - `ioc: { ip: string[], domain: string[], cve: string[], process: string[] }`
 - `timestamp: string`

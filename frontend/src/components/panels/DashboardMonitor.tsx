@@ -15,6 +15,9 @@ export function DashboardMonitor({ payload }: DashboardMonitorProps) {
   const totalIocCount = iocSummary.reduce((sum, item) => sum + item.value, 0)
   const highSeverityCount = payload.evidence.nodes.filter((node) => node.severity === 'high').length
   const mediumSeverityCount = payload.evidence.nodes.filter((node) => node.severity === 'medium').length
+  const asyncCv = payload.observability.async_cross_validate
+  const asyncInFlight = asyncCv.queued + asyncCv.running
+  const asyncFailed = asyncCv.failed
   const totalSignals = payload.evidence.nodes.length + payload.timeline.length + totalIocCount
   const cautionCount = mediumSeverityCount + payload.downgrade.length
   const safeCount = Math.max(totalSignals - highSeverityCount - cautionCount, 0)
@@ -22,6 +25,7 @@ export function DashboardMonitor({ payload }: DashboardMonitorProps) {
     ...iocSummary,
     { label: 'Assets', value: affectedAssets.length },
     { label: 'Tasks', value: payload.execution.tasks.length },
+    { label: 'AsyncXV', value: asyncInFlight },
   ]
 
   const logs =
@@ -71,6 +75,13 @@ export function DashboardMonitor({ payload }: DashboardMonitorProps) {
       value: safeCount,
       ratio: `${totalSignals > 0 ? ((safeCount / totalSignals) * 100).toFixed(2) : '0.00'}%`,
       tone: 'green',
+    },
+    {
+      key: 'async-fail',
+      label: '异步校验失败',
+      value: asyncFailed,
+      ratio: asyncCv.done + asyncFailed > 0 ? `${((asyncFailed / (asyncCv.done + asyncFailed)) * 100).toFixed(2)}%` : '0.00%',
+      tone: asyncFailed > 0 ? 'red' : 'cyan',
     },
   ]
 

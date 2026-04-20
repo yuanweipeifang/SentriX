@@ -3,9 +3,11 @@ import hashlib
 import json
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 import time
+import threading
 from urllib.parse import urlparse
 from typing import Any, Dict, List, Tuple
 
@@ -21,6 +23,18 @@ from .web_search_client import WebSearchClient
 
 class ThreatIntelligenceRetrieval:
     """RAG retrieval + context compression for IOC-driven enrichment."""
+
+    _async_stats_lock = threading.Lock()
+    _async_stats: Dict[str, int] = {
+        "queued": 0,
+        "running": 0,
+        "done": 0,
+        "failed": 0,
+    }
+    _async_runtime: Dict[str, Any] = {
+        "enabled": False,
+        "scheduled": 0,
+    }
 
     def __init__(
         self,
@@ -50,6 +64,48 @@ class ThreatIntelligenceRetrieval:
             if self.model_config.rag_auto_reindex and self.rag_store.stats().get("total_docs", 0) == 0:
                 self.reindex_database()
         self._analysis_cache: Dict[str, Tuple[float, ThreatIntel]] = {}
+        self._async_cross_validate_enabled = os.getenv("ONLINE_RAG_ASYNC_CVE_CROSS_VALIDATE", "true").lower() == "true"
+        async_workers = max(1, int(os.getenv("ONLINE_RAG_ASYNC_CVE_WORKERS", "2")))
+        self._async_executor = ThreadPoolExecutor(max_workers=async_workers, thread_name_prefix="sentrix-cve-xv")
+        self._update_async_runtime(enabled=self._async_cross_validate_enabled)
+
+    @classmethod
+    def get_async_cross_validate_stats(cls) -> Dict[str, int]:
+        with cls._async_stats_lock:
+            return {
+                "queued": int(cls._async_stats.get("queued", 0) or 0),
+                "running": int(cls._async_stats.get("running", 0) or 0),
+                "done": int(cls._async_stats.get("done", 0) or 0),
+                "failed": int(cls._async_stats.get("failed", 0) or 0),
+            }
+
+    @classmethod
+    def get_async_cross_validate_runtime_status(cls) -> Dict[str, Any]:
+        with cls._async_stats_lock:
+            return {
+                "enabled": bool(cls._async_runtime.get("enabled", False)),
+                "scheduled": int(cls._async_runtime.get("scheduled", 0) or 0),
+                "queued": int(cls._async_stats.get("queued", 0) or 0),
+                "running": int(cls._async_stats.get("running", 0) or 0),
+                "done": int(cls._async_stats.get("done", 0) or 0),
+                "failed": int(cls._async_stats.get("failed", 0) or 0),
+            }
+
+    @classmethod
+    def _update_async_stats(cls, **delta: int) -> None:
+        with cls._async_stats_lock:
+            for key, change in delta.items():
+                if key not in cls._async_stats:
+                    continue
+                cls._async_stats[key] = max(0, int(cls._async_stats.get(key, 0) or 0) + int(change or 0))
+
+    @classmethod
+    def _update_async_runtime(cls, enabled: bool | None = None, scheduled: int | None = None) -> None:
+        with cls._async_stats_lock:
+            if enabled is not None:
+                cls._async_runtime["enabled"] = bool(enabled)
+            if scheduled is not None:
+                cls._async_runtime["scheduled"] = max(0, int(scheduled or 0))
 
     def retrieve(self, incident: Incident) -> ThreatIntel:
         cache_key = self._cache_key_for_incident(incident)
@@ -112,6 +168,19 @@ class ThreatIntelligenceRetrieval:
         if online_cve_findings:
             cve_findings.extend(online_cve_findings)
 
+        force_online_cve_fields = os.getenv("ONLINE_RAG_FORCE_CVE_FIELD_SEARCH", "true").lower() == "true"
+        cve_field_online_enriched_count = 0
+        if force_online_cve_fields and cve_findings:
+            cve_findings, cve_field_online_enriched_count = self._enrich_missing_cve_fields_online(
+                cve_findings=cve_findings,
+                force_online=True,
+            )
+
+        async_cross_validate_scheduled = 0
+        if self._async_cross_validate_enabled and cve_findings:
+            async_cross_validate_scheduled = self._schedule_async_cve_cross_validation(cve_findings)
+        async_stats = self.get_async_cross_validate_stats()
+
         persist_stats: Dict[str, Any] = {"upserted": 0}
         if self.rag_store and (online_findings or online_cve_findings):
             persist_stats = self._persist_online_findings_to_db(
@@ -150,6 +219,14 @@ class ThreatIntelligenceRetrieval:
             ),
             "online_findings_count": len(online_findings),
             "online_cve_enriched_count": len(online_cve_findings),
+            "online_cve_field_enriched_count": cve_field_online_enriched_count,
+            "online_cve_field_search_enabled": force_online_cve_fields,
+            "online_async_cross_validate_enabled": self._async_cross_validate_enabled,
+            "online_async_cross_validate_scheduled": async_cross_validate_scheduled,
+            "online_async_cross_validate_queued": int(async_stats.get("queued", 0) or 0),
+            "online_async_cross_validate_running": int(async_stats.get("running", 0) or 0),
+            "online_async_cross_validate_done": int(async_stats.get("done", 0) or 0),
+            "online_async_cross_validate_failed": int(async_stats.get("failed", 0) or 0),
             "online_db_upserted": int(persist_stats.get("upserted", 0) or 0),
         }
         compressed_context = self._compress(cve_findings, ioc_findings, asset_findings, rule_findings, online_findings)
@@ -822,6 +899,154 @@ class ThreatIntelligenceRetrieval:
             "fixed_versions": [str(x) for x in fixed_versions if str(x).strip()],
             "source_url": str(response.get("source_url", f"https://nvd.nist.gov/vuln/detail/{cve_id}")),
         }
+
+    def _enrich_missing_cve_fields_online(
+        self,
+        cve_findings: List[Dict[str, Any]],
+        force_online: bool = True,
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        max_items = max(1, int(os.getenv("ONLINE_RAG_CVE_FIELD_SEARCH_MAX", "10")))
+        enriched_count = 0
+        processed = 0
+
+        for row in cve_findings:
+            if processed >= max_items:
+                break
+
+            cve_id = str(row.get("cve", "")).upper().strip()
+            if not cve_id.startswith("CVE-"):
+                continue
+
+            if not self._cve_row_needs_field_enrichment(row):
+                continue
+
+            processed += 1
+            detail = self._fetch_cve_detail_via_llm_search(cve_id, force_online=force_online)
+            if not detail:
+                continue
+
+            changed = False
+            if not list(row.get("cwe", []) or []) and list(detail.get("cwe", []) or []):
+                row["cwe"] = list(detail.get("cwe", []) or [])
+                changed = True
+
+            vuln_alias = str(row.get("vuln_alias", "")).strip()
+            if (not vuln_alias or vuln_alias.lower() == "unknown") and str(detail.get("vuln_alias", "")).strip():
+                row["vuln_alias"] = str(detail.get("vuln_alias", cve_id)).strip()
+                changed = True
+
+            if not list(row.get("software_versions", []) or []) and list(detail.get("software_versions", []) or []):
+                row["software_versions"] = list(detail.get("software_versions", []) or [])
+                changed = True
+
+            if not list(row.get("fixed_versions", []) or []) and list(detail.get("fixed_versions", []) or []):
+                row["fixed_versions"] = list(detail.get("fixed_versions", []) or [])
+                changed = True
+
+            if changed:
+                row["source_url"] = str(detail.get("source_url", row.get("source_url", "")))
+                row["source_type"] = "online_cve_field_enriched"
+                enriched_count += 1
+
+        return cve_findings, enriched_count
+
+    @staticmethod
+    def _cve_row_needs_field_enrichment(row: Dict[str, Any]) -> bool:
+        cwe_empty = not list(row.get("cwe", []) or [])
+        vuln_alias = str(row.get("vuln_alias", "")).strip().lower()
+        alias_empty = vuln_alias in {"", "unknown"}
+        software_empty = not list(row.get("software_versions", []) or [])
+        fixed_empty = not list(row.get("fixed_versions", []) or [])
+        return cwe_empty or alias_empty or software_empty or fixed_empty
+
+    def _schedule_async_cve_cross_validation(self, cve_findings: List[Dict[str, Any]]) -> int:
+        max_items = max(1, int(os.getenv("ONLINE_RAG_ASYNC_CVE_MAX", "6")))
+        candidates: List[Dict[str, Any]] = []
+        for row in cve_findings:
+            cve_id = str(row.get("cve", "")).upper().strip()
+            if not cve_id.startswith("CVE-"):
+                continue
+            if not self._cve_row_needs_field_enrichment(row):
+                continue
+            candidates.append(
+                {
+                    "cve": cve_id,
+                    "severity": float(row.get("severity", 0.0) or 0.0),
+                    "description": str(row.get("description", "") or ""),
+                    "ttp": str(row.get("ttp", "Unknown") or "Unknown"),
+                    "cwe": list(row.get("cwe", []) or []),
+                    "vuln_alias": str(row.get("vuln_alias", cve_id) or cve_id),
+                    "software_versions": list(row.get("software_versions", []) or []),
+                    "fixed_versions": list(row.get("fixed_versions", []) or []),
+                    "source_url": str(row.get("source_url", f"https://nvd.nist.gov/vuln/detail/{cve_id}")),
+                }
+            )
+            if len(candidates) >= max_items:
+                break
+
+        if not candidates:
+            self._update_async_runtime(enabled=self._async_cross_validate_enabled, scheduled=0)
+            return 0
+
+        try:
+            self._update_async_stats(queued=len(candidates))
+            self._update_async_runtime(enabled=self._async_cross_validate_enabled, scheduled=len(candidates))
+            self._async_executor.submit(self._async_cross_validate_and_persist, candidates)
+        except Exception:
+            self._update_async_stats(queued=-len(candidates), failed=len(candidates))
+            self._update_async_runtime(enabled=self._async_cross_validate_enabled, scheduled=0)
+            return 0
+        return len(candidates)
+
+    def _async_cross_validate_and_persist(self, cve_rows: List[Dict[str, Any]]) -> None:
+        self._update_async_stats(queued=-len(cve_rows), running=len(cve_rows))
+        validated_rows: List[Dict[str, Any]] = []
+        failed_count = 0
+
+        for row in cve_rows:
+            cve_id = str(row.get("cve", "")).upper().strip()
+            if not cve_id.startswith("CVE-"):
+                failed_count += 1
+                continue
+
+            detail = self._fetch_cve_detail_via_llm_search(cve_id, force_online=True)
+            if not detail:
+                failed_count += 1
+                continue
+
+            cwe = list(row.get("cwe", []) or []) or list(detail.get("cwe", []) or [])
+            vuln_alias = str(row.get("vuln_alias", "") or "").strip()
+            if not vuln_alias or vuln_alias.lower() == "unknown":
+                vuln_alias = str(detail.get("vuln_alias", cve_id)).strip() or cve_id
+
+            software_versions = list(row.get("software_versions", []) or []) or list(detail.get("software_versions", []) or [])
+            fixed_versions = list(row.get("fixed_versions", []) or []) or list(detail.get("fixed_versions", []) or [])
+            source_url = str(detail.get("source_url", row.get("source_url", f"https://nvd.nist.gov/vuln/detail/{cve_id}")))
+
+            validated_rows.append(
+                {
+                    "cve": cve_id,
+                    "severity": float(row.get("severity", detail.get("severity", 0.0)) or 0.0),
+                    "description": str(row.get("description", detail.get("description", "")) or ""),
+                    "ttp": str(row.get("ttp", detail.get("ttp", "Unknown")) or "Unknown"),
+                    "cwe": cwe,
+                    "vuln_alias": vuln_alias,
+                    "software_versions": software_versions,
+                    "fixed_versions": fixed_versions,
+                    "source_url": source_url,
+                    "source_type": "online_async_cross_validated",
+                }
+            )
+
+        if not validated_rows or not self.rag_store:
+            self._update_async_stats(running=-len(cve_rows), done=len(validated_rows), failed=failed_count)
+            return
+
+        try:
+            self._persist_online_findings_to_db(online_findings=[], cve_findings=validated_rows)
+            self._update_async_stats(running=-len(cve_rows), done=len(validated_rows), failed=failed_count)
+        except Exception:
+            self._update_async_stats(running=-len(cve_rows), failed=max(1, len(cve_rows)))
 
     def _persist_online_findings_to_db(self, online_findings: List[Dict[str, Any]], cve_findings: List[Dict[str, Any]]) -> Dict[str, Any]:
         if not self.rag_store:
