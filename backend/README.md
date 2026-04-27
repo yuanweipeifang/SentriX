@@ -1,72 +1,62 @@
-# Automated Threat Analysis & Incident Response (Backend)
+# 🧠 SentriX Backend
 
-## Run
+> 面向安全分析、规则研判与执行审计的后端核心引擎
 
-```bash
-python -m backend.app.main --input /home/kali/SentriX/backend/data/sample_incident.json
-# or run from repository root
-python /home/kali/SentriX/main.py --input /home/kali/SentriX/backend/data/sample_incident.json
+本目录文档聚焦后端工程，包括 CLI、API、架构分层、配置项、批量评估、RAG 运维与排障。
+
+## 📌 目录
+- [🎯 后端职责](#-后端职责)
+- [🏗️ 架构分层](#️-架构分层)
+- [🔄 主流程](#-主流程)
+- [📁 目录结构](#-目录结构)
+- [✅ 运行前准备](#-运行前准备)
+- [🚀 运行命令手册](#-运行命令手册)
+- [🔌 API 手册](#-api-手册)
+- [🧾 Eval Harness 说明](#-eval-harness-说明)
+- [🧠 RAG 数据维护](#-rag-数据维护)
+- [⚙️ 配置项说明](#️-配置项说明)
+- [🧪 运行模式建议](#-运行模式建议)
+- [🩺 常见问题与排障](#-常见问题与排障)
+- [🗂️ 迁移与兼容](#️-迁移与兼容)
+
+## 🎯 后端职责
+- 统一接入日志输入（JSON/CSV/Dataset）并做结构化解析。
+- 执行 `triage -> rag -> planning -> audit` 的阶段化分析。
+- 输出前端统一契约数据（用于仪表盘、狩猎页、执行编排页）。
+- 提供运行时日志和状态接口供前端轮询。
+- 支持离线评估与批量报告落盘。
+
+## 🏗️ 架构分层
+
+```text
+app/
+  domain/    # 领域模型与配置
+  services/  # 能力实现（ingestion, rag, llm, planning, auditing 等）
+  engine/    # 流程编排与运行时（workflow, skill_engine, agents）
+  api_server.py
+  main.py
 ```
 
-### Dataset / Stress Test
+分层职责：
+- `app/main.py`：CLI 参数解析、任务分发、输出控制。
+- `app/api_server.py`：Flask API 路由、参数校验、JSON 序列化。
+- `app/engine/workflow.py`：主流程编排与阶段输出聚合。
+- `app/services/*`：各模块能力实现。
 
-```bash
-# Dataset JSON single sample
-python -m backend.app.main --dataset-file /home/kali/SentriX/backend/dataset/incident_examples.json --dataset-index 0
-# shorthand aliases from root entry
-python /home/kali/SentriX/main.py --dataset /home/kali/SentriX/backend/dataset/incident_examples.json --index 0
+## 🔄 主流程
 
-# CSV single row
-python -m backend.app.main --csv-dataset-file /home/kali/SentriX/backend/dataset/Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv --csv-row-index 0
-# shorthand aliases from root entry
-python /home/kali/SentriX/main.py --csv /home/kali/SentriX/backend/dataset/Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv --row 0
-
-# Stress test over real CSV traffic dataset
-python -m backend.app.main --stress-test --stress-mode csv --csv-dataset-file /home/kali/SentriX/backend/dataset/Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv --stress-max-samples 20
-
-# Rebuild RAG database + run smoke test
-python -m backend.app.main --rag-reindex
-python -m backend.app.main --rag-smoke-test --dataset-file /home/kali/SentriX/backend/dataset/incident_examples_min.json --dataset-index 0
-
-# Import real CVE JSONs (MITRE/NVD style single-file records) into RAG
-python -m backend.app.main --rag-import-cve-dir /home/kali/SentriX/backend/data/cve
-
-# Import attack rules (custom json / sigma-like json) into RAG
-python -m backend.app.main --rag-import-rule-dir /home/kali/SentriX/backend/data/rules
-
-# Import IOC jsons into RAG
-python -m backend.app.main --rag-import-ioc-dir /home/kali/SentriX/backend/data/ioc
-
-# Rule+evidence judgement on minimal csv dataset
-python -m backend.app.main --rag-eval-csv --csv-dataset-file /home/kali/SentriX/backend/dataset/test_10_no_label.csv --rag-eval-max-rows 10
-
-# LLM eval harness (keep heartbeat + colorful realtime output)
-conda run --no-capture-output -n sentrix python -m backend.app.main --eval-harness --eval-max-samples 20 --eval-start-index 0 --heartbeat-seconds 2
+```text
+ingestion -> triage -> rag -> planning/rule_judgement -> audit -> frontend payload
 ```
 
-### Eval Harness 输出说明（简洁终端 + 详细落盘）
+关键特性：
+- 支持技能闭环门控（skill-gated execution）。
+- 审计失败时阻断执行下发（`execution_allowed=false`）。
+- 可输出阶段轨迹与运行时日志，便于诊断。
 
-- 终端输出：
-  - 彩色阶段进度（`[EVAL xx]`）
-  - 样本简报（`[EVAL-SAMPLE]`）
-  - 汇总结果（`[EVAL-SUMMARY]`）
-  - 报告路径（`[EVAL-REPORT]`）
-- 详细数据文件：自动写入 `backend/logs/eval_harness_*.json` 与 `backend/logs/eval_harness_*.md`。
-- 映射诊断：报告内新增 `mapping_diagnostics`，用于定位 Incident 映射偏差来源（如 `audit_pass_but_pred_incident`）。
+## 📁 目录结构
 
-## Backend Skill Closed Loop
-
-- Runtime enforces required skills from `.trae/skills`.
-- Pipeline stages are skill-gated: `triage -> rag -> planning -> audit`.
-- Output includes:
-  - `skill_runtime.loaded_skills`
-  - `skill_runtime.execution_trace`
-  - `audit.audit_result`
-  - `execution_allowed` (blocks execution when audit fails)
-
-## Project Structure
-
-```
+```text
 backend/
   app/
     domain/
@@ -83,94 +73,199 @@ backend/
       planning.py
       response_generator.py
       auditor.py
+      eval_harness.py
     engine/
       skill_engine.py
       workflow.py
       agents.py
+    api_server.py
     main.py
     auditory.py
-    __init__.py
     prompts/
-      action_generation.prompt.txt
-      state_estimation.prompt.txt
-      planning_simulation.prompt.txt
-  main.py
   data/
-    sample_incident.json
+  dataset/
+  logs/
   requirements.txt
 ```
 
-## Refactored Architecture
+## ✅ 运行前准备
 
-- `app/main.py` 只负责 CLI 参数解析与输出控制。
-- `app/engine/workflow.py` 统一做依赖装配、阶段执行与结果拼装。
-- `app/services/auditor.py` 作为审计主实现；`app/auditory.py` 保留兼容导入。
-- `app/domain` 承载领域模型与配置，`app/services` 承载业务能力实现，`app/engine` 承载流程编排与运行引擎。
-- `backend/main.py` 提供包级统一启动入口。
+```bash
+cd /home/kali/SentriX
+conda create -n sentrix python=3.11 -y
+conda run -n sentrix pip install -r backend/requirements.txt
+```
 
-## Migration
+> 建议优先用 `conda run -n sentrix ...`，避免 shell 初始化差异导致的激活问题。
 
-- 迁移文档见 `backend/MIGRATION.md`。
+## 🚀 运行命令手册
 
-## Multi-Agent LLM 配置
+### 1) 单样本 JSON
 
-### .env 模型配置（国产）
+```bash
+conda run -n sentrix python -m backend.app.main \
+  --input /home/kali/SentriX/backend/data/sample_incident.json
+```
 
-- 运行时会自动读取工作区根目录 `.env`（优先）和 `backend/.env`（回退）。
-- 默认强制国产 provider：`LLM_ENFORCE_DOMESTIC=true`。
-- 支持 provider：`qwen` / `glm` / `deepseek`。
-- 推荐在 `.env` 中设置：
-  - `LLM_PROVIDER=qwen`
-  - `LLM_MODEL=qwen-plus`
-  - `LLM_ENDPOINT=https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions`
+### 2) Dataset JSON 单样本
 
-> 当前代码已改为硬编码默认值：直接 `python main.py` 可运行，无需额外传入以上模型参数。
+```bash
+conda run -n sentrix python -m backend.app.main \
+  --dataset-file /home/kali/SentriX/backend/dataset/incident_examples.json \
+  --dataset-index 0
+```
 
-- 多 agent 讨论开关与收敛参数：
-  - `MULTI_AGENT_ENABLED`（默认 `true`）
-  - `MULTI_AGENT_USE_LLM_AGENTS`（默认 `true`，关闭后走规则回退）
-  - `MULTI_AGENT_MAX_ROUNDS`（默认 `3`）
-  - `MULTI_AGENT_CONVERGENCE_STREAK`（默认 `2`）
-  - `MULTI_AGENT_PER_AGENT_TIMEOUT_MS`（默认 `1800`）
-  - `MULTI_AGENT_MAX_ELAPSED_MS`（默认 `6000`）
-  - `MULTI_AGENT_MIN_MARGIN`（默认 `0.05`）
-- agent 模型 API 配置（支持全局 + 角色覆盖）：
-  - 全局：`AGENT_ENDPOINT`、`AGENT_API_KEY`、`AGENT_MODEL`、`AGENT_TIMEOUT_SECONDS`
-  - 角色覆盖：`AGENT_TRIAGE_*`、`AGENT_INTEL_*`、`AGENT_RESPONSE_*`
-    - 如：`AGENT_TRIAGE_API_KEY`、`AGENT_INTEL_MODEL`
-- 基础模型配置支持从 `backend/apikey.txt` 自动加载（也可通过 `API_KEY_FILE=/path/to/apikey.txt` 指定）：
-  - `DASHSCOPE_API_KEY`（qwen）
-  - `GLM_API_KEY`（glm）
-  - `DEEPSEEK_API_KEY`（deepseek）
-  - `OPENAI_API_KEY`（openai）
-- RAG 数据库配置：
-  - `RAG_USE_DB`（默认 `true`）
-  - `RAG_DB_PATH`（默认 `backend/data/rag_intel.db`）
-  - `RAG_TOP_K`（默认 `12`）
-  - `RAG_AUTO_REINDEX`（默认 `true`）
-- 规则导入 JSON（自定义）示例字段：
-  - `rule_id`, `rule_type`, `title`, `pattern`, `ttp`, `severity`, `confidence`, `source`, `version`
-- IOC 导入 JSON（自定义）示例字段：
-  - `ioc`, `threat`, `confidence`, `source_url`
-- 提示词文件：
-  - `app/prompts/agent_triage.prompt.txt`
-  - `app/prompts/agent_intel.prompt.txt`
-  - `app/prompts/agent_response.prompt.txt`
+### 3) CSV 单行
 
-## 5x5 规则生成引擎（CVE）
+```bash
+conda run -n sentrix python -m backend.app.main \
+  --csv-dataset-file /home/kali/SentriX/backend/dataset/Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv \
+  --csv-row-index 0
+```
 
-- 功能开关与策略参数（均通过 `.env`）：
-  - 默认已硬编码启用（5 并行 x 5 迭代，温度 0.7~0.9）
-- 行为：单个 CVE 并行生成 5 条候选规则，每条最多优化 5 轮，按评分保留 Top-K。
+### 4) 启动 API 服务（供前端联调）
 
-## 当前主流程（规则驱动研判）
+```bash
+conda run -n sentrix python -m backend.app.main \
+  --serve-api --api-host 127.0.0.1 --api-port 8000
+```
 
-- 主流程不再使用多 Agent 行动规划做最终研判。
-- 新流程：`triage -> rag -> rule_generation -> rule_judgement`。
-- 规则来源：
-  - RAG 中已有规则（rule_findings）
-  - 基于漏洞（CVE）自动生成的最佳规则（best_rule）
-- 事件研判直接基于规则匹配结果输出：
-  - `clean / suspicious / malicious`
-  - `audit_result: pass / warning / fail`
-  - `execution_allowed` 由规则风险等级直接决定。
+### 5) Eval Harness（推荐批量评估）
+
+```bash
+conda run --no-capture-output -n sentrix python -m backend.app.main \
+  --eval-harness \
+  --eval-dataset-file /home/kali/SentriX/backend/dataset/incident_examples_min.json \
+  --eval-start-index 0 \
+  --eval-max-samples 20 \
+  --heartbeat-seconds 2
+```
+
+### 6) RAG 数据维护
+
+```bash
+# 重建索引
+conda run -n sentrix python -m backend.app.main --rag-reindex
+
+# 冒烟测试
+conda run -n sentrix python -m backend.app.main \
+  --rag-smoke-test \
+  --dataset-file /home/kali/SentriX/backend/dataset/incident_examples_min.json \
+  --dataset-index 0
+
+# 导入 CVE / Rule / IOC
+conda run -n sentrix python -m backend.app.main --rag-import-cve-dir /home/kali/SentriX/backend/data/cve
+conda run -n sentrix python -m backend.app.main --rag-import-rule-dir /home/kali/SentriX/backend/data/rules
+conda run -n sentrix python -m backend.app.main --rag-import-ioc-dir /home/kali/SentriX/backend/data/ioc
+```
+
+## 🔌 API 手册
+
+### 健康与基础
+- `GET /api/health`：健康检查。
+- `GET /api/datasets/files`：返回 dataset 可选文件列表（供前端下拉）。
+
+### 分析与运行态
+- `GET /api/frontend-payload`：主分析入口。
+  - 支持参数：`dataset_file`、`dataset_index`、`input_file`、`csv_file`、`csv_row_index`。
+- `GET /api/runtime/analysis-logs`：增量日志。
+  - 常用参数：`since_id`、`limit`、`include_heartbeat`。
+- `GET /api/runtime/async-cross-validate`：异步校验状态。
+
+### 业务能力
+- `POST /api/hunt/rag-suggest`：猎捕建议生成。
+- `POST /api/copilot/chat`：AI 对话。
+- `POST /api/execution/countermeasure`：反制预演/下发。
+- `GET /api/rules/search`：规则检索。
+- `GET/PATCH /api/system/settings`：系统设置读取与更新。
+
+## 🧾 Eval Harness 说明
+
+终端输出：
+- `[EVAL xx]`：阶段进度。
+- `[EVAL-SAMPLE]`：样本级简报。
+- `[EVAL-SUMMARY]`：汇总统计。
+- `[EVAL-REPORT]`：报告路径。
+
+报告落盘：
+- `backend/logs/eval_harness_*.json`
+- `backend/logs/eval_harness_*.md`
+
+报告特点：
+- 包含 `mapping_diagnostics`，用于定位映射偏差问题。
+
+## 🧠 RAG 数据维护
+
+数据来源：
+- CVE（漏洞结构化数据）
+- IOC（威胁指示器）
+- Rule（检测规则）
+
+默认配置：
+- `RAG_USE_DB=true`
+- `RAG_DB_PATH=backend/data/rag_intel.db`
+- `RAG_TOP_K=12`
+- `RAG_AUTO_REINDEX=true`
+
+建议：
+- 批量导入后先 `--rag-smoke-test`，再进行大规模评估。
+- 导入格式应保持字段一致性，避免检索命中质量波动。
+
+## ⚙️ 配置项说明
+
+配置加载优先级：
+- 仓库根 `.env`（优先）
+- `backend/.env`（回退）
+
+模型与 Provider：
+- `LLM_PROVIDER`（默认 qwen）
+- `LLM_MODEL`
+- `LLM_ENDPOINT`
+- `LLM_ENFORCE_DOMESTIC=true`（可按策略调整）
+
+多 Agent 参数：
+- `MULTI_AGENT_ENABLED`
+- `MULTI_AGENT_USE_LLM_AGENTS`
+- `MULTI_AGENT_MAX_ROUNDS`
+- `MULTI_AGENT_CONVERGENCE_STREAK`
+- `MULTI_AGENT_PER_AGENT_TIMEOUT_MS`
+- `MULTI_AGENT_MAX_ELAPSED_MS`
+- `MULTI_AGENT_MIN_MARGIN`
+
+Key 来源：
+- `backend/apikey.txt`（支持 `DASHSCOPE_API_KEY / GLM_API_KEY / DEEPSEEK_API_KEY / OPENAI_API_KEY`）
+- 或 `API_KEY_FILE=/path/to/file`
+
+## 🧪 运行模式建议
+
+开发联调：
+- 启动 API + 前端，观察 `/api/runtime/analysis-logs`。
+
+批量评估：
+- 优先 `--eval-harness`，并开启 heartbeat。
+
+生产化演示：
+- 使用固定 dataset + 固定索引集合，保证可重复结果与可解释性。
+
+## 🩺 常见问题与排障
+
+### 1) `CondaError: Run 'conda init' before 'conda activate'`
+- 使用 `conda run -n sentrix ...` 规避 shell 激活依赖。
+
+### 2) 批量任务报 `No valid candidate actions after policy filtering`
+- 多为样本在策略过滤后无候选动作。
+- 建议分段运行定位问题样本：
+  - `--eval-max-samples 10`
+  - 配合 `--eval-start-index` 逐段排查。
+
+### 3) `--stress-test` 报 `unexpected keyword argument 'progress_callback'`
+- 当前版本建议临时使用 `--eval-harness` 完成批量任务。
+
+### 4) API 返回慢或前端等待过久
+- 查看 heartbeat 与 runtime logs 是否持续更新。
+- 检查模型接口耗时与检索源可用性。
+
+## 🗂️ 迁移与兼容
+- 架构迁移文档：`backend/MIGRATION.md`
+- `app/services/auditor.py` 为审计主实现。
+- `app/auditory.py` 保留兼容导入能力。

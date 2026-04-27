@@ -12,6 +12,7 @@ const navAccentMap: Record<string, string> = {
   analysis: 'nav-accent-cyan',
   evidence: 'nav-accent-violet',
   hunt: 'nav-accent-orange',
+  'threat-hunt': 'nav-accent-cyan',
   execution: 'nav-accent-blue',
   history: 'nav-accent-violet',
   settings: 'nav-accent-orange',
@@ -37,6 +38,11 @@ const pageMetaMap: Record<string, { title: string; subtitle: string; tone: strin
     title: '猎捕查询',
     subtitle: '浏览 SQL / Elasticsearch DSL / Splunk SPL 模板。',
     tone: 'tone-warning',
+  },
+  'threat-hunt': {
+    title: '威胁狩猎',
+    subtitle: '实时接入后端分析日志，并展示攻击链、暴露面与 IOC 指标。',
+    tone: 'tone-info',
   },
   execution: {
     title: '执行编排',
@@ -77,11 +83,9 @@ function App() {
           <TopBar
             title={currentPage.title}
             subtitle={currentPage.subtitle}
-            source={payload.incident_overview.source}
-            assetCount={payload.incident_overview.affected_assets.length}
             tone={currentPage.tone}
           />
-          <div className="workspace-scroll">
+          <div className={`workspace-scroll ${selectedNavId === 'threat-hunt' ? 'workspace-scroll-lock' : ''}`}>
             <WorkspaceContent
               payload={payload}
               aiMessages={ui.aiPanel.messages}

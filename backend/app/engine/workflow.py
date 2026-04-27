@@ -680,10 +680,14 @@ def _build_frontend_explainability(result: Dict) -> Dict:
 def _build_frontend_payload(result: Dict) -> Dict:
     incident = result.get("incident", {}) or {}
     response = result.get("response", {}) or {}
+    audit = result.get("audit", {}) or {}
+    model_runtime = result.get("model_runtime", {}) or {}
+    skill_runtime = result.get("skill_runtime", {}) or {}
     frontend_explainability = result.get("frontend_explainability", {}) or {}
     case_memory = result.get("case_memory", {}) or {}
     executable = response.get("executable", {}) or {}
     orchestration = executable.get("orchestration", {}) or {}
+    deep_analysis = result.get("deep_analysis", {}) or {}
 
     return {
         "schema_version": "frontend-payload/v1",
@@ -703,7 +707,6 @@ def _build_frontend_payload(result: Dict) -> Dict:
         "checklist": frontend_explainability.get("review_checklist", []),
         "hunt": {
             "tabs": frontend_explainability.get("hunt_query_tabs", []),
-            "count": len(frontend_explainability.get("hunt_query_tabs", []) or []),
         },
         "execution": {
             "mode": executable.get("mode", ""),
@@ -718,7 +721,6 @@ def _build_frontend_payload(result: Dict) -> Dict:
             "strategy": orchestration.get("strategy", ""),
             "nodes": orchestration.get("nodes", []),
             "edges": orchestration.get("edges", []),
-            "approval_nodes": orchestration.get("approval_nodes", []),
             "rollback_plan": orchestration.get("rollback_plan", {}),
             "execution_order": orchestration.get("execution_order", []),
         },
@@ -730,6 +732,19 @@ def _build_frontend_payload(result: Dict) -> Dict:
             "historical_panel": frontend_explainability.get("historical_case_panel", {}),
         },
         "observability": frontend_explainability.get("observability_panel", {}),
+        "runtime": {
+            "model_provider": model_runtime.get("provider", ""),
+            "model_name": model_runtime.get("model_name", ""),
+            "model_endpoint": model_runtime.get("endpoint", ""),
+            "token_usage": model_runtime.get("token_usage", {}) or {},
+            "audit_result": audit.get("audit_result", ""),
+            "execution_allowed": bool(result.get("execution_allowed", False)),
+            "audit_log_file": result.get("audit_log_file", ""),
+            "skill_trace": skill_runtime.get("execution_trace", []) or [],
+        },
+        "attack_chain_mapping": deep_analysis.get("攻击链ATT&CK映射", []),
+        "exposure_surface_analysis": deep_analysis.get("暴露面分析", {}),
+        "ioc_indicators": deep_analysis.get("IOC指标", []),
     }
 
 

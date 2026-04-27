@@ -43,6 +43,16 @@ export interface AsyncCrossValidateRuntimeStatus {
   failed: number
 }
 
+export interface RuntimeAnalysisLogEntry {
+  id: number
+  message: string
+}
+
+export interface RuntimeAnalysisLogsResponse {
+  logs: RuntimeAnalysisLogEntry[]
+  latestId: number
+}
+
 export async function fetchAsyncCrossValidateRuntimeStatus(signal?: AbortSignal): Promise<AsyncCrossValidateRuntimeStatus> {
   const response = await fetch('/api/runtime/async-cross-validate', {
     method: 'GET',
@@ -63,5 +73,41 @@ export async function fetchAsyncCrossValidateRuntimeStatus(signal?: AbortSignal)
     running: Number(stats.running ?? 0),
     done: Number(stats.done ?? 0),
     failed: Number(stats.failed ?? 0),
+  }
+}
+
+export async function fetchRuntimeAnalysisLogs(
+  sinceId = 0,
+  limit = 120,
+  signal?: AbortSignal,
+): Promise<RuntimeAnalysisLogsResponse> {
+  const params = new URLSearchParams()
+  params.set('since_id', String(Math.max(0, sinceId)))
+  params.set('limit', String(Math.max(1, Math.min(400, limit))))
+  params.set('include_heartbeat', 'false')
+
+  const response = await fetch(`/api/runtime/analysis-logs?${params.toString()}`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+    signal,
+  })
+  if (!response.ok) {
+    throw new Error(`runtime analysis logs request failed: ${response.status}`)
+  }
+  const payload = (await response.json()) as {
+    logs?: Array<{ id?: number; message?: string }>
+    latest_id?: number
+  }
+  const logs = Array.isArray(payload.logs)
+    ? payload.logs
+        .map((item) => ({
+          id: Number(item.id ?? 0),
+          message: String(item.message ?? ''),
+        }))
+        .filter((item) => item.id > 0 && item.message.length > 0)
+    : []
+  return {
+    logs,
+    latestId: Number(payload.latest_id ?? (logs.length > 0 ? logs[logs.length - 1].id : sinceId)),
   }
 }

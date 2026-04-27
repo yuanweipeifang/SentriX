@@ -1,8 +1,6 @@
 interface TopBarProps {
   title: string
   subtitle: string
-  source: string
-  assetCount: number
   tone: string
 }
 
@@ -59,7 +57,7 @@ function TopBarIcon({ tone }: { tone: string }) {
   }
 }
 
-export function TopBar({ title, subtitle, source, assetCount, tone }: TopBarProps) {
+export function TopBar({ title, subtitle, tone }: TopBarProps) {
   return (
     <header className={`topbar topbar-${tone}`}>
       <div className="topbar-accent" />
@@ -71,10 +69,6 @@ export function TopBar({ title, subtitle, source, assetCount, tone }: TopBarProp
       <div className="topbar-copy">
         <h1>{title}</h1>
         <p className="topbar-summary">{subtitle}</p>
-        <div className="topbar-badges">
-          <span className="chip chip-outline">Source {source || 'N/A'}</span>
-          <span className="chip chip-outline">Assets {assetCount}</span>
-        </div>
       </div>
       <div className="topbar-status">{toneLabelMap[tone] ?? '在线'}</div>
     </header>

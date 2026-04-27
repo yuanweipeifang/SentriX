@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import deque
 import json
 import os
 from pathlib import Path
@@ -13,6 +14,7 @@ from .domain.config import ModelConfig
 from .engine.workflow import run_pipeline, run_pipeline_csv_dataset, run_pipeline_dataset
 from .services.countermeasure_service import CountermeasureService
 from .services.countermeasure_state_store import CountermeasureStateStore
+from .services.ingestion import DataIngestion
 from .services.llm_client import LLMClient
 from .services.rag import ThreatIntelligenceRetrieval
 from .services.rag_store import SQLiteRAGStore
@@ -20,6 +22,7 @@ from .services.rag_store import SQLiteRAGStore
 
 DEFAULT_DATASET = str(Path(__file__).resolve().parents[1] / "dataset" / "incident_examples_min.json")
 DEFAULT_INPUT = str(Path(__file__).resolve().parents[1] / "data" / "sample_incident.json")
+DATASET_ROOT = Path(__file__).resolve().parents[1] / "dataset"
 AVAILABLE_COPILOT_MODELS = (
     "qwen3-max",
     "qwen3-max-preview",
@@ -109,6 +112,10 @@ AVAILABLE_COPILOT_MODELS = (
 )
 
 COUNTERMEASURE_STATE_STORE = CountermeasureStateStore()
+ANALYSIS_LOG_BUFFER_MAX = 800
+ANALYSIS_LOG_BUFFER = deque(maxlen=ANALYSIS_LOG_BUFFER_MAX)
+ANALYSIS_LOG_SEQUENCE = 0
+ANSI_ESCAPE_RE = re.compile(r"\x1B\[[0-9;]*[A-Za-z]")
 
 SYSTEM_SETTINGS_SCHEMA: dict[str, dict[str, Any]] = {
     "rules_default_page_size": {"type": "int", "default": 100, "min": 5, "max": 200},
@@ -123,6 +130,50 @@ def _parse_bool(value: Any) -> bool:
         return value
     text = str(value or "").strip().lower()
     return text in {"1", "true", "yes", "on"}
+
+
+def _localize_runtime_log_line(message: str) -> str:
+    replacements = {
+        "sample_load_start": "样本加载开始",
+        "sample_load_done": "样本加载完成",
+        "rag_start": "情报检索开始",
+        "rag_done": "情报检索完成",
+        "layered_agents_start": "分层分析开始",
+        "layered_agents_done": "分层分析完成",
+        "state_estimation_start": "状态评估开始",
+        "state_estimation_done": "状态评估完成",
+        "rule_generation_start": "规则生成开始",
+        "rule_generation_done": "规则生成完成",
+        "candidate_generation_start": "候选动作生成开始",
+        "candidate_generation_done": "候选动作生成完成",
+        "planning_start": "响应规划开始",
+        "planning_done": "响应规划完成",
+        "response_generation_start": "响应封装开始",
+        "response_generation_done": "响应封装完成",
+        "audit_start": "审计开始",
+        "audit_done": "审计完成",
+        "audit_log_written": "审计日志已写入",
+        "source=": "数据源=",
+        "assets=": "资产数=",
+        "raw_logs=": "原始日志数=",
+        "summary=": "摘要=",
+        "rules=": "规则数=",
+        "cves=": "CVE数=",
+        "iocs=": "IOC数=",
+        "cache_hit=": "缓存命中=",
+        "identified=": "识别威胁数=",
+        "prioritized=": "优先威胁数=",
+        "hunt_queries=": "猎捕查询数=",
+        "containment=": "遏制度=",
+        "assessment=": "评估度=",
+        "preservation=": "保全度=",
+        "count=": "数量=",
+        "path=": "路径=",
+    }
+    localized = message
+    for source, target in replacements.items():
+        localized = localized.replace(source, target)
+    return localized
 
 
 def _serialize_system_setting(key: str, value: Any) -> str:
@@ -253,33 +304,14 @@ def _sync_countermeasure_runtime(result: dict[str, Any]) -> dict[str, Any]:
     execution["summary"] = summary
     frontend_payload["execution"] = execution
     result["frontend_payload"] = frontend_payload
-
-    response = result.get("response", {}) or {}
-    executable = response.get("executable", {}) or {}
-    if executable:
-        executable["countermeasures"] = merged
-        executable["summary"] = summary
-        response["executable"] = executable
-        result["response"] = response
     return result
 
 
-def _sync_runtime_observability(result: dict[str, Any]) -> dict[str, Any]:
+def _build_frontend_api_response(result: dict[str, Any]) -> dict[str, Any]:
     frontend_payload = result.get("frontend_payload", {}) or {}
-    observability = frontend_payload.get("observability", {}) or {}
-
-    async_status = ThreatIntelligenceRetrieval.get_async_cross_validate_runtime_status()
-    observability["async_cross_validate"] = {
-        "enabled": bool(async_status.get("enabled", False)),
-        "scheduled": int(async_status.get("scheduled", 0) or 0),
-        "queued": int(async_status.get("queued", 0) or 0),
-        "running": int(async_status.get("running", 0) or 0),
-        "done": int(async_status.get("done", 0) or 0),
-        "failed": int(async_status.get("failed", 0) or 0),
+    return {
+        "frontend_payload": frontend_payload,
     }
-    frontend_payload["observability"] = observability
-    result["frontend_payload"] = frontend_payload
-    return result
 
 
 def _list_attack_rules(query: str = "", limit: int = 100, offset: int = 0) -> dict[str, Any]:
@@ -506,6 +538,20 @@ def _build_copilot_system_prompt(context: dict[str, Any] | None) -> str:
 def create_frontend_api_app() -> Flask:
     app = Flask(__name__)
 
+    def _append_runtime_log(message: str) -> None:
+        global ANALYSIS_LOG_SEQUENCE
+        line = ANSI_ESCAPE_RE.sub("", str(message or "")).strip()
+        line = _localize_runtime_log_line(line)
+        if not line:
+            return
+        ANALYSIS_LOG_SEQUENCE += 1
+        ANALYSIS_LOG_BUFFER.append(
+            {
+                "id": ANALYSIS_LOG_SEQUENCE,
+                "message": line,
+            }
+        )
+
     @app.after_request
     def _apply_cors_headers(response):  # type: ignore[no-untyped-def]
         response.headers["Access-Control-Allow-Origin"] = "*"
@@ -517,6 +563,49 @@ def create_frontend_api_app() -> Flask:
     def health():
         return jsonify({"ok": True, "service": "frontend-payload-api", "framework": "flask"})
 
+    @app.route("/api/datasets/files", methods=["GET"])
+    def list_dataset_files():
+        items = sorted([item for item in DATASET_ROOT.glob("*") if item.is_file()], key=lambda p: p.name.lower())
+        json_files = []
+        csv_files = []
+
+        for item in items:
+            suffix = item.suffix.lower()
+            if suffix == ".json":
+                try:
+                    sample_count = DataIngestion.count_dataset_samples(str(item))
+                except Exception:
+                    sample_count = 0
+                json_files.append(
+                    {
+                        "name": item.name,
+                        "path": str(item),
+                        "sample_count": int(sample_count),
+                    }
+                )
+            elif suffix == ".csv":
+                try:
+                    row_count = DataIngestion.count_csv_rows(str(item))
+                except Exception:
+                    row_count = 0
+                csv_files.append(
+                    {
+                        "name": item.name,
+                        "path": str(item),
+                        "row_count": int(row_count),
+                    }
+                )
+
+        return jsonify(
+            {
+                "ok": True,
+                "root": str(DATASET_ROOT),
+                "default_dataset": DEFAULT_DATASET,
+                "json_files": json_files,
+                "csv_files": csv_files,
+            }
+        )
+
     @app.route("/api/frontend-payload", methods=["GET"])
     def frontend_payload():
         dataset_file = request.args.get("dataset_file", DEFAULT_DATASET)
@@ -526,29 +615,69 @@ def create_frontend_api_app() -> Flask:
         csv_row_index = request.args.get("csv_row_index", default=0, type=int)
 
         try:
+            _append_runtime_log(
+                "分析开始 | 数据源={source}; 样本索引={idx}; CSV行号={row}".format(
+                    source="CSV" if csv_file else ("单文件" if input_file else "数据集"),
+                    idx=dataset_index,
+                    row=csv_row_index,
+                )
+            )
             if csv_file:
-                result = run_pipeline_csv_dataset(csv_file=csv_file, row_index=csv_row_index)
+                result = run_pipeline_csv_dataset(
+                    csv_file=csv_file,
+                    row_index=csv_row_index,
+                    progress_callback=_append_runtime_log,
+                )
             elif input_file:
-                result = run_pipeline(input_file=input_file)
+                result = run_pipeline(input_file=input_file, progress_callback=_append_runtime_log)
             else:
-                result = run_pipeline_dataset(dataset_file=dataset_file, sample_index=dataset_index)
+                result = run_pipeline_dataset(
+                    dataset_file=dataset_file,
+                    sample_index=dataset_index,
+                    progress_callback=_append_runtime_log,
+                )
             result = _sync_countermeasure_runtime(result)
-            result = _sync_runtime_observability(result)
             frontend_payload = result.get("frontend_payload", {}) or {}
             frontend_payload["rules"] = _list_attack_rules(limit=120)
             result["frontend_payload"] = frontend_payload
-            return jsonify(result)
+            _append_runtime_log(
+                "分析完成 | 审计结果={audit}; 可执行={allowed}".format(
+                    audit=str((result.get("audit", {}) or {}).get("audit_result", "未知")),
+                    allowed="是" if bool(result.get("execution_allowed", False)) else "否",
+                )
+            )
+            return jsonify(_build_frontend_api_response(result))
         except Exception as exc:  # pragma: no cover - defensive API boundary
+            _append_runtime_log(f"分析失败 | {exc}")
             return (
                 jsonify(
                 {
                     "error": "frontend_payload_failed",
-                    "message": str(exc),
+                    "message": f"前端载荷生成失败：{exc}",
                     "frontend_payload": {},
                 }
                 ),
                 500,
             )
+
+    @app.route("/api/runtime/analysis-logs", methods=["GET"])
+    def runtime_analysis_logs():
+        since_id = request.args.get("since_id", default=0, type=int)
+        limit = max(1, min(request.args.get("limit", default=120, type=int), 400))
+        include_heartbeat = _parse_bool(request.args.get("include_heartbeat", "false"))
+
+        logs = [item for item in list(ANALYSIS_LOG_BUFFER) if int(item.get("id", 0)) > since_id]
+        if not include_heartbeat:
+            logs = [item for item in logs if "HEARTBEAT" not in str(item.get("message", "")).upper()]
+        logs = logs[-limit:]
+        return jsonify(
+            {
+                "ok": True,
+                "logs": logs,
+                "latest_id": int(logs[-1]["id"]) if logs else since_id,
+                "buffer_size": len(ANALYSIS_LOG_BUFFER),
+            }
+        )
 
     @app.route("/api/runtime/async-cross-validate", methods=["GET"])
     def runtime_async_cross_validate():

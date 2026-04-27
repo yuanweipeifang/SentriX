@@ -8,7 +8,9 @@ import { HistoryPanel } from '../panels/HistoryPanel'
 import { HomeRuntimePanel } from '../panels/HomeRuntimePanel'
 import { HuntPanel } from '../panels/HuntPanel'
 import { OrchestrationPanel } from '../panels/OrchestrationPanel'
+import { ThreatHuntRealtimePanel } from '../panels/ThreatHuntRealtimePanel'
 import type { HuntBridgePayload } from '../../types/huntBridge'
+import type { FrontendPayloadQuery } from '../../services/frontendPayloadApi'
 import {
   getSystemSettings,
   updateSystemSettings,
@@ -22,7 +24,7 @@ interface WorkspaceContentProps {
   selectedNavId: string
   nav: DashboardNavItem[]
   onNavigate?: (navId: string) => void
-  onRefreshData?: () => Promise<void>
+  onRefreshData?: (query?: FrontendPayloadQuery) => Promise<void>
 }
 
 export function WorkspaceContent({
@@ -247,7 +249,10 @@ export function WorkspaceContent({
   const selectedNav = nav.find((item) => item.id === selectedNavId) ?? nav[1] ?? nav[0]
 
   return (
-    <div key={selectedNavId} className="page-transition-wrap">
+    <div
+      key={selectedNavId}
+      className={`page-transition-wrap ${selectedNav?.id === 'threat-hunt' ? 'page-transition-wrap-lock' : ''}`}
+    >
       {selectedNav?.id === 'home' ? renderHomePage() : null}
       {selectedNav?.id === 'dashboard' ? renderDashboardPage() : null}
       {selectedNav?.id === 'analysis' ? renderAnalysisPage() : null}
@@ -269,6 +274,11 @@ export function WorkspaceContent({
         </section>
       ) : null}
       {selectedNav?.id === 'execution' ? renderExecutionPage() : null}
+      {selectedNav?.id === 'threat-hunt' ? (
+        <section className="single-column-layout single-column-layout-no-scroll threat-hunt-route">
+          <ThreatHuntRealtimePanel payload={payload} onRefreshData={onRefreshData} />
+        </section>
+      ) : null}
       {selectedNav?.id === 'history' ? renderHistoryPage() : null}
       {selectedNav?.id === 'settings' ? renderSettingsPage() : null}
       {!selectedNav ? renderAnalysisPage() : null}

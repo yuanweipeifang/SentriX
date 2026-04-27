@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import threading
 import time
@@ -231,6 +232,144 @@ def _print_eval_matrix_summary(concise: Dict[str, Any]) -> None:
     )
 
 
+def _print_concise_matrix_view(concise: Dict[str, Any]) -> None:
+    conclusion = concise.get("结论", {}) or {}
+    data_source = concise.get("数据来源", {}) or {}
+    summary = concise.get("研判摘要", {}) or {}
+    runtime = concise.get("运行状态", {}) or {}
+    top3 = concise.get("动作对比Top3", []) or []
+    attack_chain = concise.get("攻击链ATT&CK映射", []) or []
+    exposure = concise.get("暴露面分析", {}) or {}
+    ioc_rows = concise.get("IOC指标", []) or []
+
+    print(f"{Fore.CYAN}[MATRIX]{Style.RESET_ALL} 结论", flush=True)
+    print("| 是否事件 | 可执行 | 审计结果 | 推荐动作 | 推荐阶段 | 恢复增益 | 恢复时间(分钟) |", flush=True)
+    print("|---|---|---|---|---|---:|---:|", flush=True)
+    print(
+        "| {is_incident} | {executable} | {audit} | {action} | {stage} | {gain} | {cost} |".format(
+            is_incident=conclusion.get("是否事件", False),
+            executable=conclusion.get("可执行", False),
+            audit=conclusion.get("审计结果", ""),
+            action=conclusion.get("推荐动作", ""),
+            stage=conclusion.get("推荐阶段", ""),
+            gain=conclusion.get("预计恢复增益", 0.0),
+            cost=conclusion.get("预计恢复时间(分钟)", 0.0),
+        ),
+        flush=True,
+    )
+
+    print(f"\n{Fore.CYAN}[MATRIX]{Style.RESET_ALL} 数据来源", flush=True)
+    print("| source | sample_index | dataset_size | path |", flush=True)
+    print("|---|---:|---:|---|", flush=True)
+    print(
+        "| {source} | {idx} | {size} | {path} |".format(
+            source=data_source.get("source", ""),
+            idx=data_source.get("sample_index", 0),
+            size=data_source.get("dataset_size", 0),
+            path=data_source.get("path", ""),
+        ),
+        flush=True,
+    )
+
+    print(f"\n{Fore.CYAN}[MATRIX]{Style.RESET_ALL} 研判摘要", flush=True)
+    ioc_count = summary.get("IOC数量", {}) or {}
+    print("| 资产数 | 规则命中 | 相似案例 | IOC(IP/Domain/CVE/Process) |", flush=True)
+    print("|---:|---:|---:|---|", flush=True)
+    print(
+        "| {assets} | {rules} | {cases} | {ip}/{domain}/{cve}/{process} |".format(
+            assets=len(str(summary.get("资产", "")).split(", ")) if summary.get("资产") else 0,
+            rules=summary.get("规则命中数", 0),
+            cases=summary.get("相似案例数", 0),
+            ip=ioc_count.get("ip", 0),
+            domain=ioc_count.get("domain", 0),
+            cve=ioc_count.get("cve", 0),
+            process=ioc_count.get("process", 0),
+        ),
+        flush=True,
+    )
+
+    print(f"\n{Fore.CYAN}[MATRIX]{Style.RESET_ALL} 动作对比 Top3", flush=True)
+    print("| # | 动作 | 阶段 | score | gain | time | valid |", flush=True)
+    print("|---:|---|---|---:|---:|---:|---|", flush=True)
+    for idx, row in enumerate(top3, start=1):
+        print(
+            "| {idx} | {name} | {stage} | {score} | {gain} | {time} | {valid} |".format(
+                idx=idx,
+                name=row.get("action_name", ""),
+                stage=row.get("target_stage", ""),
+                score=row.get("score", 0.0),
+                gain=row.get("progress_gain", 0.0),
+                time=row.get("projected_recovery_time", 0.0),
+                valid=row.get("validation_passed", False),
+            ),
+            flush=True,
+        )
+
+    print(f"\n{Fore.CYAN}[MATRIX]{Style.RESET_ALL} 运行状态", flush=True)
+    print("| 已加载技能 | 执行阶段数 | 规则生成启用 | 首要威胁 | 审计日志文件 |", flush=True)
+    print("|---:|---:|---|---|---|", flush=True)
+    rules_gen = runtime.get("规则生成", {}) or {}
+    layered = runtime.get("专业分层代理", {}) or {}
+    print(
+        "| {skills} | {stages} | {rulegen} | {threat} | {log_file} |".format(
+            skills=runtime.get("已加载技能数", 0),
+            stages=runtime.get("执行阶段数", 0),
+            rulegen=rules_gen.get("启用", False),
+            threat=layered.get("首要威胁", ""),
+            log_file=runtime.get("审计日志文件", ""),
+        ),
+        flush=True,
+    )
+
+    print(f"\n{Fore.CYAN}[MATRIX]{Style.RESET_ALL} 攻击链映射", flush=True)
+    print("| 攻击阶段 | ATT&CK战术 | 技术ID | 技术描述 |", flush=True)
+    print("|---|---|---|---|", flush=True)
+    for row in attack_chain[:10]:
+        print(
+            "| {stage} | {tactic} | {tid} | {desc} |".format(
+                stage=row.get("攻击阶段", ""),
+                tactic=row.get("ATT&CK战术", ""),
+                tid=row.get("技术ID", ""),
+                desc=row.get("技术描述", ""),
+            ),
+            flush=True,
+        )
+
+    print(f"\n{Fore.CYAN}[MATRIX]{Style.RESET_ALL} 暴露面分析", flush=True)
+    print("| 风险等级 | 说明 | 暴露资产数 | 关键资产数 | 最高CVE严重度 |", flush=True)
+    print("|---|---|---:|---:|---:|", flush=True)
+    print(
+        "| {level} | {reason} | {asset_count} | {critical} | {max_cve} |".format(
+            level=exposure.get("场景风险等级", ""),
+            reason=exposure.get("场景风险等级说明", ""),
+            asset_count=exposure.get("暴露资产数", 0),
+            critical=exposure.get("关键资产数", 0),
+            max_cve=exposure.get("最高CVE严重度", 0.0),
+        ),
+        flush=True,
+    )
+
+    print(f"\n{Fore.CYAN}[MATRIX]{Style.RESET_ALL} IOC 指标 (前3条)", flush=True)
+    print("| 记录 | CVE | CWE | 漏洞代号 |", flush=True)
+    print("|---:|---|---|---|", flush=True)
+    for row in ioc_rows[:3]:
+        metrics = row.get("指标", []) or []
+        def metric_value(name: str) -> str:
+            for metric in metrics:
+                if metric.get("名称") == name:
+                    return str(metric.get("值", ""))
+            return ""
+        print(
+            "| {idx} | {cve} | {cwe} | {alias} |".format(
+                idx=row.get("记录", ""),
+                cve=metric_value("CVE"),
+                cwe=metric_value("CWE"),
+                alias=metric_value("漏洞代号"),
+            ),
+            flush=True,
+        )
+
+
 def main() -> None:
     colorama_init(autoreset=True)
     parser = argparse.ArgumentParser(description="Automated Threat Analysis & Incident Response Backend")
@@ -432,6 +571,12 @@ def main() -> None:
         "--compact-json",
         action="store_true",
         help="Print one-line compact JSON after matrix summary (avoids pretty-print line breaks).",
+    )
+    parser.add_argument(
+        "--output-format",
+        choices=["json", "matrix"],
+        default=os.getenv("SENTRIX_OUTPUT_FORMAT", "json"),
+        help="Pipeline concise output format. Supports env SENTRIX_OUTPUT_FORMAT=json|matrix.",
     )
     parser.add_argument(
         "--api-host",
@@ -702,7 +847,13 @@ def main() -> None:
     if args.full_output:
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return
-    print(json.dumps(build_concise_view(result), ensure_ascii=False, indent=2))
+    concise_view = build_concise_view(result)
+    if args.output_format == "matrix":
+        _print_concise_matrix_view(concise_view)
+        if args.compact_json:
+            print(json.dumps(concise_view, ensure_ascii=False, separators=(",", ":")))
+        return
+    print(json.dumps(concise_view, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

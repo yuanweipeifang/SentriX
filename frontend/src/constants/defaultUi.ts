@@ -5,6 +5,7 @@ export const DEFAULT_NAV: DashboardNavItem[] = [
   { id: 'dashboard', label: '仪表盘' },
   { id: 'analysis', label: '事件研判' },
   { id: 'hunt', label: '猎捕查询' },
+  { id: 'threat-hunt', label: '威胁狩猎' },
   { id: 'execution', label: '执行编排' },
   { id: 'history', label: '攻击规则' },
   { id: 'settings', label: '系统设置' },
@@ -117,6 +118,26 @@ export function createEmptyFrontendPayload(): FrontendPayload {
         failed: 0,
       },
     },
+    runtime: {
+      model_provider: '',
+      model_name: '',
+      model_endpoint: '',
+      token_usage: {},
+      audit_result: '',
+      execution_allowed: false,
+      audit_log_file: '',
+      skill_trace: [],
+    },
+    attack_chain_mapping: [],
+    exposure_surface_analysis: {
+      risk_level: '',
+      risk_reason: '',
+      asset_count: 0,
+      critical_asset_count: 0,
+      max_cve_severity: 0,
+    },
+    ioc_indicators: [],
+    runtime_logs: [],
   }
 }
 

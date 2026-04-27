@@ -48,6 +48,13 @@ export function SidebarIcon({ id }: SidebarIconProps) {
           <path d="m14.5 14.5 5 5" />
         </svg>
       )
+    case 'threat-hunt':
+      return (
+        <svg viewBox="0 0 24 24" className="nav-svg" aria-hidden="true">
+          <path d="M12 3 4.5 7v5.5c0 4.6 2.8 7.9 7.5 8.5 4.7-.6 7.5-3.9 7.5-8.5V7L12 3Z" />
+          <path d="m9 12 2 2 4-4" />
+        </svg>
+      )
     case 'execution':
       return (
         <svg viewBox="0 0 24 24" className="nav-svg" aria-hidden="true">

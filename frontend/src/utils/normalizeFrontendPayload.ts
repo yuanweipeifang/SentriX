@@ -1,11 +1,14 @@
 import { DEFAULT_NAV, createEmptyFrontendPayload } from '../constants/defaultUi'
 import type {
+  AttackChainMappingItem,
   AiPanelMessage,
   CountermeasurePreview,
   DashboardNavItem,
   ExecutionTask,
   FrontendPayload,
+  IocIndicatorRecord,
   OrchestrationNode,
+  SkillExecutionTraceItem,
   UiShellData,
 } from '../types/frontendPayload'
 
@@ -96,36 +99,76 @@ function normalizeOrchestrationNode(input: unknown): OrchestrationNode {
   }
 }
 
-function buildAiMessages(raw: Record<string, unknown>, frontendPayload: FrontendPayload): AiPanelMessage[] {
-  const modelRuntime = asRecord(raw.model_runtime)
-  const agentLayers = asRecord(raw.agent_layers)
-  const audit = asRecord(raw.audit)
-  const confidence = asRecord(raw.confidence_model)
+function normalizeSkillExecutionTrace(input: unknown): SkillExecutionTraceItem[] {
+  return asArray(input).map((item) => {
+    const row = asRecord(item)
+    return {
+      stage: asString(row.stage),
+      skill: asString(row.skill),
+      status: asString(row.status),
+      elapsed_ms: asNumber(row.elapsed_ms),
+    }
+  })
+}
 
-  const prioritizedThreats = asArray<Record<string, unknown>>(agentLayers.prioritized_threats)
-  const topThreat = asString(asRecord(prioritizedThreats[0]).threat, frontendPayload.cards[0]?.value ?? 'N/A')
+function normalizeAttackChainMapping(input: unknown): AttackChainMappingItem[] {
+  return asArray(input).map((item) => {
+    const row = asRecord(item)
+    return {
+      stage: asString(row.stage, asString(row['攻击阶段'])),
+      tactic: asString(row.tactic, asString(row['ATT&CK战术'])),
+      technique_id: asString(row.technique_id, asString(row['技术ID'])),
+      description: asString(row.description, asString(row['技术描述'])),
+    }
+  })
+}
+
+function normalizeIocIndicators(input: unknown): IocIndicatorRecord[] {
+  return asArray(input).map((item) => {
+    const row = asRecord(item)
+    const metrics = asArray(row.metrics, asArray(row['指标'])).map((metric) => {
+      const m = asRecord(metric)
+      return {
+        name: asString(m.name, asString(m['名称'])),
+        value: asString(m.value, asString(m['值'])),
+      }
+    })
+    return {
+      index: asNumber(row.index, asNumber(row['记录'], 0)),
+      metrics,
+    }
+  })
+}
+
+function buildAiMessages(frontendPayload: FrontendPayload): AiPanelMessage[] {
+  const runtime = frontendPayload.runtime
+  const topThreat =
+    frontendPayload.cards.find((item) => item.key === 'top_threat')?.value ||
+    frontendPayload.incident_overview.event_summary ||
+    '暂无'
+  const huntCount = frontendPayload.hunt.tabs.length
 
   return [
     {
       id: 'runtime',
       role: 'system',
       title: '模型运行',
-      content: `provider=${asString(modelRuntime.provider, 'unknown')}, model=${asString(modelRuntime.model_name, 'unknown')}`,
-      meta: 'LLM Runtime',
+      content: `服务商=${runtime.model_provider || '未知'}；模型=${runtime.model_name || '未知'}`,
+      meta: '运行时',
     },
     {
       id: 'agents',
       role: 'assistant',
-      title: 'AI 代理状态',
-      content: `top_threat=${topThreat}; hunt_queries=${frontendPayload.hunt.count}`,
-      meta: 'Agents',
+      title: '分析摘要',
+      content: `首要威胁=${topThreat}；猎捕查询=${huntCount} 条`,
+      meta: '研判',
     },
     {
       id: 'audit',
       role: 'insight',
       title: '审计与执行',
-      content: `audit=${asString(audit.audit_result, 'unknown')}; execution_confidence=${asNumber(confidence.execution_confidence, 0)}`,
-      meta: 'Audit',
+      content: `审计结果=${runtime.audit_result || '未知'}；允许执行=${runtime.execution_allowed ? '是' : '否'}`,
+      meta: '审计',
     },
   ]
 }
@@ -134,6 +177,10 @@ export function normalizeFrontendPayload(rawInput: unknown): UiShellData {
   const raw = asRecord(rawInput)
   const payloadCandidate = asRecord(raw.frontend_payload)
   const source = Object.keys(payloadCandidate).length > 0 ? payloadCandidate : raw
+  const sourceRuntime = asRecord(source.runtime)
+  const modelRuntime = asRecord(raw.model_runtime)
+  const skillRuntime = asRecord(raw.skill_runtime)
+  const audit = asRecord(raw.audit)
 
   const frontendPayload: FrontendPayload = {
     schema_version: asString(source.schema_version, defaultPayload.schema_version),
@@ -175,7 +222,7 @@ export function normalizeFrontendPayload(rawInput: unknown): UiShellData {
     checklist: asArray(source.checklist, defaultPayload.checklist),
     hunt: {
       tabs: asArray(asRecord(source.hunt).tabs, defaultPayload.hunt.tabs),
-      count: asNumber(asRecord(source.hunt).count, defaultPayload.hunt.count),
+      count: asNumber(asRecord(source.hunt).count, asArray(asRecord(source.hunt).tabs, defaultPayload.hunt.tabs).length),
     },
     execution: {
       mode: asString(asRecord(source.execution).mode, defaultPayload.execution.mode),
@@ -190,7 +237,12 @@ export function normalizeFrontendPayload(rawInput: unknown): UiShellData {
       strategy: asString(asRecord(source.orchestration).strategy, defaultPayload.orchestration.strategy),
       nodes: asArray(asRecord(source.orchestration).nodes).map((item) => normalizeOrchestrationNode(item)),
       edges: asArray(asRecord(source.orchestration).edges, defaultPayload.orchestration.edges),
-      approval_nodes: asArray(asRecord(source.orchestration).approval_nodes, defaultPayload.orchestration.approval_nodes),
+      approval_nodes: asArray<Record<string, unknown>>(
+        asRecord(source.orchestration).approval_nodes,
+        asArray<Record<string, unknown>>(asRecord(source.orchestration).nodes).filter((item) =>
+          asBoolean(asRecord(item).requires_approval),
+        ),
+      ),
       rollback_plan: asRecord(asRecord(source.orchestration).rollback_plan),
       execution_order: asArray(asRecord(source.orchestration).execution_order, defaultPayload.orchestration.execution_order),
     },
@@ -271,13 +323,54 @@ export function normalizeFrontendPayload(rawInput: unknown): UiShellData {
         ),
       },
     },
+    runtime: {
+      model_provider: asString(sourceRuntime.model_provider, asString(modelRuntime.provider)),
+      model_name: asString(sourceRuntime.model_name, asString(modelRuntime.model_name)),
+      model_endpoint: asString(sourceRuntime.model_endpoint, asString(modelRuntime.endpoint)),
+      token_usage: Object.keys(asRecord(sourceRuntime.token_usage)).length > 0
+        ? asRecord(sourceRuntime.token_usage)
+        : asRecord(modelRuntime.token_usage),
+      audit_result: asString(sourceRuntime.audit_result, asString(audit.audit_result)),
+      execution_allowed: asBoolean(sourceRuntime.execution_allowed, asBoolean(raw.execution_allowed, false)),
+      audit_log_file: asString(sourceRuntime.audit_log_file, asString(raw.audit_log_file)),
+      skill_trace: normalizeSkillExecutionTrace(sourceRuntime.skill_trace ?? skillRuntime.execution_trace),
+    },
+    attack_chain_mapping: normalizeAttackChainMapping(
+      asRecord(source).attack_chain_mapping ?? asRecord(raw.deep_analysis)['攻击链ATT&CK映射'],
+    ),
+    exposure_surface_analysis: {
+      risk_level: asString(
+        asRecord(source).exposure_surface_analysis && asRecord(asRecord(source).exposure_surface_analysis).risk_level,
+        asString(asRecord(asRecord(raw.deep_analysis)['暴露面分析'])['场景风险等级']),
+      ),
+      risk_reason: asString(
+        asRecord(source).exposure_surface_analysis && asRecord(asRecord(source).exposure_surface_analysis).risk_reason,
+        asString(asRecord(asRecord(raw.deep_analysis)['暴露面分析'])['场景风险等级说明']),
+      ),
+      asset_count: asNumber(
+        asRecord(source).exposure_surface_analysis && asRecord(asRecord(source).exposure_surface_analysis).asset_count,
+        asNumber(asRecord(asRecord(raw.deep_analysis)['暴露面分析'])['暴露资产数'], 0),
+      ),
+      critical_asset_count: asNumber(
+        asRecord(source).exposure_surface_analysis && asRecord(asRecord(source).exposure_surface_analysis).critical_asset_count,
+        asNumber(asRecord(asRecord(raw.deep_analysis)['暴露面分析'])['关键资产数'], 0),
+      ),
+      max_cve_severity: asNumber(
+        asRecord(source).exposure_surface_analysis && asRecord(asRecord(source).exposure_surface_analysis).max_cve_severity,
+        asNumber(asRecord(asRecord(raw.deep_analysis)['暴露面分析'])['最高CVE严重度'], 0),
+      ),
+    },
+    ioc_indicators: normalizeIocIndicators(
+      asRecord(source).ioc_indicators ?? asRecord(raw.deep_analysis)['IOC指标'],
+    ),
+    runtime_logs: asArray<string>(asRecord(source).runtime_logs, []),
   }
 
   const nav: DashboardNavItem[] = DEFAULT_NAV
   const aiPanel = {
     title: 'AI 协同窗口',
     subtitle: '大模型、RAG、规划与审计信息',
-    messages: buildAiMessages(raw, frontendPayload),
+    messages: buildAiMessages(frontendPayload),
   }
 
   return {

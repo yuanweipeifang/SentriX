@@ -223,6 +223,49 @@ export interface ObservabilityPanel {
   }
 }
 
+export interface SkillExecutionTraceItem {
+  stage: string
+  skill: string
+  status: string
+  elapsed_ms: number
+}
+
+export interface RuntimeDetails {
+  model_provider: string
+  model_name: string
+  model_endpoint: string
+  token_usage: Record<string, unknown>
+  audit_result: string
+  execution_allowed: boolean
+  audit_log_file: string
+  skill_trace: SkillExecutionTraceItem[]
+}
+
+export interface AttackChainMappingItem {
+  stage: string
+  tactic: string
+  technique_id: string
+  description: string
+}
+
+export interface ExposureSurfaceAnalysis {
+  risk_level: string
+  risk_reason: string
+  asset_count: number
+  critical_asset_count: number
+  max_cve_severity: number
+}
+
+export interface IocIndicatorMetric {
+  name: string
+  value: string
+}
+
+export interface IocIndicatorRecord {
+  index: number
+  metrics: IocIndicatorMetric[]
+}
+
 export interface IncidentOverview {
   event_summary: string
   affected_assets: string[]
@@ -252,6 +295,11 @@ export interface FrontendPayload {
   rules: RulesPanel
   case_memory: CaseMemoryPanel
   observability: ObservabilityPanel
+  runtime: RuntimeDetails
+  attack_chain_mapping: AttackChainMappingItem[]
+  exposure_surface_analysis: ExposureSurfaceAnalysis
+  ioc_indicators: IocIndicatorRecord[]
+  runtime_logs: string[]
 }
 
 export interface AiPanelMessage {

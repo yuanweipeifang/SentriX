@@ -1,19 +1,19 @@
 :root {
-  --bg-base: #000000;
-  --bg-gradient-top: #000000;
-  --bg-gradient-bottom: #000000;
-  --panel-bg: #06080e;
-  --panel-bg-elevated: #0b0f17;
-  --text-strong: #f5f7fb;
-  --text-soft: #8b95a7;
-  --text-faint: #677488;
-  --border-subtle: rgba(160, 205, 255, 0.12);
-  --cyan: #22d3ee;
-  --blue: #3b82f6;
-  --violet: #8b5cf6;
+  --bg-base: #05070f;
+  --bg-gradient-top: #0a0f1f;
+  --bg-gradient-bottom: #070912;
+  --panel-bg: #0b1124;
+  --panel-bg-elevated: #121a34;
+  --text-strong: #f7fbff;
+  --text-soft: #9aa9c4;
+  --text-faint: #7183a3;
+  --border-subtle: rgba(106, 149, 255, 0.18);
+  --cyan: #00eaff;
+  --blue: #3a8dff;
+  --violet: #9a5bff;
   --danger: #f87171;
-  --success: #4ade80;
-  --warning: #fbbf24;
+  --success: #31e6a9;
+  --warning: #ffb347;
   --sans: Consolas, 'Microsoft YaHei', '微软雅黑', 'PingFang SC', 'Noto Sans CJK SC', sans-serif;
   --mono: Consolas, 'Microsoft YaHei', '微软雅黑', monospace;
 
@@ -42,7 +42,7 @@ body,
 }
 
 body {
-  background: #000;
+  background: var(--bg-base);
   font-family: var(--sans);
 }
 
